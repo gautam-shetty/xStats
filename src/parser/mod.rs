@@ -1,5 +1,7 @@
 use crate::utils;
-pub use tree_sitter::{Language, Parser, Tree};
+pub use tree_sitter::{
+    Language, Node, Parser, Query, QueryCaptures, QueryCursor, QueryMatches, Tree,
+};
 
 pub fn get_grammar_pairs() -> Vec<(&'static str, Language, Vec<&'static str>)> {
     vec![
@@ -10,21 +12,52 @@ pub fn get_grammar_pairs() -> Vec<(&'static str, Language, Vec<&'static str>)> {
 
 pub struct TSParser {
     name: &'static str,
+    language: Language,
     parser: Parser,
     supported_extensions: Vec<&'static str>,
 }
 
 impl TSParser {
     pub fn new(name: &'static str, grammar: Language) -> Self {
+        let language = grammar;
+
         let mut parser = Parser::new();
         parser
-            .set_language(&grammar)
+            .set_language(&language)
             .expect("Error setting language");
+
         Self {
             name,
+            language,
             parser,
             supported_extensions: vec![],
         }
+    }
+
+    /// Query the syntax tree for matches
+    pub fn query_tree<'a>(
+        &self,
+        node: &Node,
+        tree: &'a Tree,
+        source_code: &'a str,
+        query_string: &str,
+    ) -> Vec<(Node<'a>, String)> {
+        let query = Query::new(&self.language, query_string).expect("Invalid query");
+        let mut query_cursor = QueryCursor::new();
+
+        let mut results = Vec::new();
+        for (query_match, index) in query_cursor.captures(&query, *node, source_code.as_bytes()) {
+            let captures = query_match.captures;
+            for capture in captures {
+                let tag = query.capture_names()[capture.index as usize].to_string();
+                let node = tree
+                    .root_node()
+                    .descendant_for_byte_range(capture.node.start_byte(), capture.node.end_byte())
+                    .unwrap();
+                results.push((node, tag));
+            }
+        }
+        results
     }
 }
 
@@ -45,7 +78,13 @@ impl TSParsers {
         Self { ts_parsers }
     }
 
-    pub fn generate_tree(&mut self, file_path: &str) -> Option<Tree> {
+    pub fn get_parser(&self, language: &str) -> Option<&TSParser> {
+        self.ts_parsers
+            .iter()
+            .find(|parser| parser.name == language)
+    }
+
+    pub fn generate_tree(&mut self, file_path: &str) -> Option<(&'static str, Tree, String)> {
         let file_extension = utils::get_file_extension(file_path);
 
         for ts_parser in &mut self.ts_parsers {
@@ -54,7 +93,9 @@ impl TSParsers {
                 .contains(&file_extension.as_str())
             {
                 let source_code = utils::read_file(file_path);
-                return ts_parser.parser.parse(source_code, None);
+                if let Some(tree) = ts_parser.parser.parse(&source_code, None) {
+                    return Some((ts_parser.name, tree, source_code));
+                }
             }
         }
         None

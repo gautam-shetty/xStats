@@ -8,6 +8,15 @@ pub fn read_file(file_path: &str) -> String {
     fs::read_to_string(file_path).expect(&format!("Failed to read the file {}", file_path))
 }
 
+pub fn get_file_name(file_path: &str) -> String {
+    Path::new(file_path)
+        .file_name()
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .to_string()
+}
+
 pub fn get_file_extension(file_path: &str) -> String {
     if let Some(extension) = Path::new(file_path).extension() {
         format!(".{}", extension.to_str().unwrap())
@@ -37,6 +46,11 @@ pub fn traverse_dir(dir_path: &str) -> Vec<String> {
 }
 
 pub fn save_to_csv(file_path: &str, data: Vec<Vec<String>>) -> Result<(), Box<dyn Error>> {
+    let path = Path::new(file_path);
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+
     let mut writer = Writer::from_path(file_path)?;
 
     // Write rows to the CSV file
