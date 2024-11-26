@@ -2,14 +2,14 @@ use crate::metrics::CodeMetrics;
 use crate::parser::TSParsers;
 use crate::utils::{save_to_csv, traverse_dir};
 
-pub struct DesigniteX {
+pub struct XStats {
     target_dir: String,
     output_dir: String,
     parsers: TSParsers,
     metrics: CodeMetrics,
 }
 
-impl DesigniteX {
+impl XStats {
     pub fn new(target_dir: String, output_dir: String) -> Self {
         let parsers = TSParsers::new();
         Self {
@@ -49,7 +49,7 @@ impl DesigniteX {
     }
 
     pub fn save_metrics(&self) {
-        let output_file = format!("{}/method_metrics.csv", self.output_dir);
+        let output_file = format!("{}/metrics.csv", self.output_dir);
         let mut data = Vec::new();
         data.push(vec![
             "language".to_string(),
