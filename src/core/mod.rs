@@ -24,9 +24,6 @@ impl XStats {
         let files = traverse_dir(&self.target_dir);
         for file in files {
             if let Some((language, tree, source_code)) = self.parsers.generate_tree(&file) {
-                // let mut metrics = CodeMetric::new(language.to_string(), file);
-                // metrics.generate_metrics(&self.parsers, &tree, &source_code);
-                // self.add_metrics(metrics);
                 self.metrics
                     .generate_root_metrics(language.to_string(), file.clone(), &tree);
                 self.metrics.generate_function_metrics(
@@ -39,10 +36,6 @@ impl XStats {
             }
         }
     }
-
-    // pub fn add_metrics(&mut self, metrics: CodeMetric) {
-    //     self.method_metrics.push(metrics);
-    // }
 
     pub fn save_data(&self) {
         self.save_metrics();
@@ -60,7 +53,7 @@ impl XStats {
             "start_col".to_string(),
             "end_row".to_string(),
             "end_col".to_string(),
-            "loc".to_string(),
+            "aloc".to_string(),
             "cc".to_string(),
             "pc".to_string(),
         ]); // Add header row
@@ -74,7 +67,7 @@ impl XStats {
                 metric.start_col.to_string(),
                 metric.end_row.to_string(),
                 metric.end_col.to_string(),
-                metric.loc.to_string(),
+                metric.aloc.to_string(),
                 metric.cc.to_string(),
                 metric.pc.to_string(),
             ]);

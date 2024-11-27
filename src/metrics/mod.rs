@@ -70,8 +70,8 @@ pub struct CodeMetric {
     pub end_row: u32,
     /// The ending column number of the node in the source file.
     pub end_col: u32,
-    /// The number of lines of code in the node.
-    pub loc: u32,
+    /// The number of actual lines of code in the node.
+    pub aloc: u32,
     /// The cyclomatic complexity of the node.
     pub cc: u32,
     /// The number of parameters the node takes.
@@ -98,7 +98,7 @@ impl CodeMetric {
             start_col: 0,
             end_row: 0,
             end_col: 0,
-            loc: 0,
+            aloc: 0,
             cc: 0,
             pc: 0,
         }
@@ -106,11 +106,10 @@ impl CodeMetric {
 
     pub fn generate_node_metrics(&mut self, node: &Node) {
         self.load_range(node);
-        self.calculate_loc(node);
-        self.calculate_cc(node);
+        self.calculate_aloc(node);
     }
 
-    pub fn load_range(&mut self, node: &Node) {
+    fn load_range(&mut self, node: &Node) {
         let start_position = node.start_position();
         let end_position = node.end_position();
         self.start_row = start_position.row as u32;
@@ -119,11 +118,14 @@ impl CodeMetric {
         self.end_col = end_position.column as u32;
     }
 
-    pub fn calculate_loc(&mut self, node: &Node) {
-        // let root_node = tree.root_node();
+    pub fn load_pc(&mut self, pc: u32) {
+        self.pc = pc;
+    }
+
+    fn calculate_aloc(&mut self, node: &Node) {
         let start_line = node.start_position().row;
         let end_line = node.end_position().row;
-        self.loc = (end_line - start_line + 1) as u32;
+        self.aloc = (end_line - start_line + 1) as u32;
     }
 
     fn count_decision_points(&self, node: Node) -> usize {
@@ -200,19 +202,20 @@ impl CodeMetrics {
         let method_captures = visitor.get_method_nodes(tree, source_code);
         for (node, tag) in method_captures {
             let node_type = node.kind();
-            let method_child_nodes = visitor.get_method_child_nodes(node, tree, source_code);
-            let method_name_node = method_child_nodes.first();
-            let method_name_text = match method_name_node {
-                Some((name_node, _)) => name_node.utf8_text(source_code.as_bytes()).unwrap(),
-                None => "unknown",
-            };
+
+            let method_name = visitor.get_method_name(node, tree, source_code);
+            let parameters_count = visitor.get_parameters_count(node, tree, source_code);
+
             let mut metrics = CodeMetric::new(
                 language.clone(),
                 file_path.clone(),
-                method_name_text.to_string(),
+                method_name,
                 node_type.to_string(),
             );
             metrics.generate_node_metrics(&node);
+            metrics.load_pc(parameters_count as u32);
+            metrics.calculate_cc(&node);
+
             self.add_metrics(metrics);
         }
     }
