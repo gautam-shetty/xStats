@@ -1,6 +1,7 @@
 use crate::metrics::CodeMetrics;
 use crate::parser::TSParsers;
 use crate::utils::{save_to_csv, traverse_dir};
+use indicatif::{ProgressBar, ProgressStyle};
 
 pub struct XStats {
     target_dir: String,
@@ -22,7 +23,20 @@ impl XStats {
 
     pub fn run(&mut self) {
         let files = traverse_dir(&self.target_dir);
-        for file in files {
+        let file_count = files.len();
+        let prog_bar = ProgressBar::new(file_count as u64);
+        prog_bar.set_style(
+            ProgressStyle::default_bar()
+                .template(
+                    "[{elapsed}] {bar:100} [{pos}/{len}]\n{spinner:.green} Processing file: {msg}",
+                )
+                .expect("Failed to set progress bar style"),
+        );
+
+        for (index, file) in files.iter().enumerate() {
+            // Update the progress bar message
+            prog_bar.set_message(file.to_string());
+
             if let Some((language, tree, source_code)) = self.parsers.generate_tree(&file) {
                 self.metrics
                     .generate_root_metrics(language.to_string(), file.clone(), &tree);
@@ -34,7 +48,11 @@ impl XStats {
                     &tree,
                 );
             }
+
+            prog_bar.inc(1);
         }
+
+        prog_bar.finish_and_clear();
     }
 
     pub fn save_data(&self) {

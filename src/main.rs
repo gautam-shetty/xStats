@@ -1,12 +1,20 @@
+use clap::Parser;
 use xstats::core;
 
+#[derive(Parser)]
+#[clap(version = "1.0", author = "Gautam Shetty")]
+struct Opts {
+    #[clap(short = 't', long = "target")]
+    target: String,
+
+    #[clap(short = 'o', long = "output")]
+    output: String,
+}
+
 fn main() {
-    let target_dir = "tmp/example";
-    // let target_dir = "tmp/refactoring-toy-example";
+    let opts: Opts = Opts::parse();
 
-    let output_dir = "tmp/op";
-
-    let mut designitex = core::XStats::new(target_dir.to_string(), output_dir.to_string());
+    let mut designitex = core::XStats::new(opts.target, opts.output);
     designitex.run();
     designitex.save_data();
 }
