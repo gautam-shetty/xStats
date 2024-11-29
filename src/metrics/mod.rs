@@ -72,6 +72,8 @@ pub struct CodeMetric {
     pub end_col: u32,
     /// The number of actual lines of code in the node.
     pub aloc: u32,
+    /// The number of empty lines of code in the node.
+    pub eloc: u32,
     /// The cyclomatic complexity of the node.
     pub cc: u32,
     /// The number of parameters the node takes.
@@ -92,13 +94,14 @@ impl CodeMetric {
         CodeMetric {
             language,
             file_path,
-            node_name,
-            node_type,
             start_row: 0,
             start_col: 0,
             end_row: 0,
             end_col: 0,
+            node_name,
+            node_type,
             aloc: 0,
+            eloc: 0,
             cc: 0,
             pc: 0,
         }
@@ -128,12 +131,39 @@ impl CodeMetric {
         self.aloc = (end_line - start_line + 1) as u32;
     }
 
-    fn count_decision_points(&self, node: Node) -> usize {
+    pub fn calculate_eloc(&mut self, node: &Node, source_code: &str, visitor: &TreeVisitor) {
+        self.eloc = visitor.count_empty_lines(*node, source_code) as u32;
+    }
+
+    fn count_decision_points(&self, node: Node, decision_points: &Vec<&str>) -> usize {
         let mut count = 0;
 
+        // Check if the current node is a decision point
+        if decision_points.contains(&node.kind()) {
+            count += 1;
+        }
+
+        // Traverse child nodes iteratively to avoid stack overflow
+        let mut stack = vec![node];
+        while let Some(current) = stack.pop() {
+            // Add child nodes to the stack
+            for i in 0..current.child_count() {
+                if let Some(child) = current.child(i) {
+                    if decision_points.contains(&child.kind()) {
+                        count += 1;
+                    }
+                    stack.push(child);
+                }
+            }
+        }
+
+        count
+    }
+
+    pub fn calculate_cc(&mut self, node: &Node) {
         // Get the decision points for the current language
-        let node_groups = get_node_groups();
         let empty_vec = vec![];
+        let node_groups = get_node_groups();
         let decision_points = node_groups
             .iter()
             .find(|(lang, _)| *lang == self.language)
@@ -146,23 +176,7 @@ impl CodeMetric {
             })
             .unwrap_or(&empty_vec);
 
-        // Check if the node is a decision point
-        if decision_points.contains(&node.kind()) {
-            count += 1;
-        }
-
-        // Traverse child nodes
-        for i in 0..node.child_count() {
-            if let Some(child) = node.child(i) {
-                count += self.count_decision_points(child);
-            }
-        }
-
-        count
-    }
-
-    pub fn calculate_cc(&mut self, node: &Node) {
-        self.cc = self.count_decision_points(*node) as u32 + 1;
+        self.cc = self.count_decision_points(*node, decision_points) as u32 + 1;
     }
 }
 
@@ -214,6 +228,7 @@ impl CodeMetrics {
             );
             metrics.generate_node_metrics(&node);
             metrics.load_pc(parameters_count as u32);
+            metrics.calculate_eloc(&node, source_code, &visitor);
             metrics.calculate_cc(&node);
 
             self.add_metrics(metrics);

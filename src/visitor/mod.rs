@@ -43,8 +43,10 @@ impl<'a> TreeVisitor<'a> {
         source_code: &'a str,
     ) -> String {
         let query_string = match self.language.as_str() {
-            "Java" => "(_ name: (_) @name)",
-            "Python" => "(_ name: (_) @name)",
+            "Java" => {
+                "[(constructor_declaration name: (_) @name)(method_declaration name: (_) @name)]"
+            }
+            "Python" => "(function_definition name: (_) @name)",
             _ => {
                 eprintln!("Unsupported language: {}", self.language);
                 return "".to_string(); // Return an empty string for unsupported languages
@@ -94,5 +96,22 @@ impl<'a> TreeVisitor<'a> {
         let query_result = parser.query_tree(&method_node, tree, source_code, query_string);
         let param_count = query_result.len();
         param_count
+    }
+
+    pub fn count_empty_lines(&self, node: Node, source_code: &str) -> usize {
+        let mut empty_lines_count = 0;
+
+        // Extract the text of the node
+        if let Some(node_text) = source_code.get(node.start_byte()..node.end_byte()) {
+            // Iterate through lines in the node's text
+            for line in node_text.lines() {
+                // Check if the line is empty or contains only whitespace
+                if line.trim().is_empty() {
+                    empty_lines_count += 1;
+                }
+            }
+        }
+
+        empty_lines_count
     }
 }

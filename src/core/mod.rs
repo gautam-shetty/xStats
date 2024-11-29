@@ -65,13 +65,14 @@ impl XStats {
         data.push(vec![
             "language".to_string(),
             "file_path".to_string(),
-            "node_name".to_string(),
-            "node_type".to_string(),
             "start_row".to_string(),
             "start_col".to_string(),
             "end_row".to_string(),
             "end_col".to_string(),
+            "node_name".to_string(),
+            "node_type".to_string(),
             "aloc".to_string(),
+            "eloc".to_string(),
             "cc".to_string(),
             "pc".to_string(),
         ]); // Add header row
@@ -79,13 +80,14 @@ impl XStats {
             data.push(vec![
                 metric.language.clone(),
                 metric.file_path.clone(),
-                metric.node_name.clone(),
-                metric.node_type.clone(),
                 metric.start_row.to_string(),
                 metric.start_col.to_string(),
                 metric.end_row.to_string(),
                 metric.end_col.to_string(),
+                metric.node_name.clone(),
+                metric.node_type.clone(),
                 metric.aloc.to_string(),
+                metric.eloc.to_string(),
                 metric.cc.to_string(),
                 metric.pc.to_string(),
             ]);
