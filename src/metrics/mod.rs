@@ -6,48 +6,41 @@ pub fn get_node_groups() -> Vec<(&'static str, Vec<(&'static str, Vec<&'static s
     vec![
         (
             "Java",
-            vec![
-                (
-                    "decision_point_nodes",
-                    vec![
-                        "if_statement",
-                        "for_statement",
-                        "while_statement",
-                        "do_statement",
-                        "switch_expression",
-                        "switch_statement",
-                        "catch_clause",
-                        "conditional_expression",
-                        "lambda_expression",
-                        "method_reference",
-                    ],
-                ),
-                (
-                    "function_definition",
-                    vec!["method_declaration", "constructor_declaration"],
-                ),
-            ],
+            vec![(
+                "decision_point_nodes",
+                vec![
+                    "if_statement",
+                    "else_clause",
+                    "for_statement",
+                    "while_statement",
+                    "do_statement",
+                    "switch_expression",
+                    "switch_statement",
+                    "catch_clause",
+                    "conditional_expression",
+                    "lambda_expression",
+                    "method_reference",
+                ],
+            )],
         ),
         (
             "Python",
-            vec![
-                (
-                    "decision_point_nodes",
-                    vec![
-                        "if_statement",
-                        "for_statement",
-                        "while_statement",
-                        "with_statement",
-                        "try_statement",
-                        "except_clause",
-                        "match_statement",
-                        "case_clause",
-                        "conditional_expression",
-                        "lambda",
-                    ],
-                ),
-                ("function_definition", vec!["function_definition"]),
-            ],
+            vec![(
+                "decision_point_nodes",
+                vec![
+                    "if_statement",
+                    "elif_clause",
+                    "for_statement",
+                    "while_statement",
+                    "with_statement",
+                    "try_statement",
+                    "except_clause",
+                    "match_statement",
+                    "case_clause",
+                    "conditional_expression",
+                    "lambda",
+                ],
+            )],
         ),
     ]
 }
@@ -115,10 +108,11 @@ impl CodeMetric {
     fn load_range(&mut self, node: &Node) {
         let start_position = node.start_position();
         let end_position = node.end_position();
-        self.start_row = start_position.row as u32;
-        self.start_col = start_position.column as u32;
-        self.end_row = end_position.row as u32;
-        self.end_col = end_position.column as u32;
+        let offset = 1;
+        self.start_row = (start_position.row + offset) as u32;
+        self.start_col = (start_position.column + offset) as u32;
+        self.end_row = (end_position.row + offset) as u32;
+        self.end_col = (end_position.column + offset) as u32;
     }
 
     pub fn load_pc(&mut self, pc: u32) {
@@ -138,21 +132,29 @@ impl CodeMetric {
     fn count_decision_points(&self, node: Node, decision_points: &Vec<&str>) -> usize {
         let mut count = 0;
 
-        // Check if the current node is a decision point
+        let skip_nodes = match self.language.as_str() {
+            "Java" => vec![
+                "class_declaration",
+                "method_declaration",
+                "constructor_declaration",
+            ],
+            "Python" => vec!["class_definition", "function_definition"],
+            _ => {
+                eprintln!("Unsupported language: {}", self.language);
+                return 0; // Return 0 for unsupported languages
+            }
+        };
+
+        // Check if the child node is a decision point
         if decision_points.contains(&node.kind()) {
             count += 1;
         }
 
-        // Traverse child nodes iteratively to avoid stack overflow
-        let mut stack = vec![node];
-        while let Some(current) = stack.pop() {
-            // Add child nodes to the stack
-            for i in 0..current.child_count() {
-                if let Some(child) = current.child(i) {
-                    if decision_points.contains(&child.kind()) {
-                        count += 1;
-                    }
-                    stack.push(child);
+        // Traverse child nodes to count decision points
+        if !skip_nodes.contains(&node.kind()) {
+            for i in 0..node.child_count() {
+                if let Some(child) = node.child(i) {
+                    count += self.count_decision_points(child, decision_points);
                 }
             }
         }
@@ -204,6 +206,35 @@ impl CodeMetrics {
         self.add_metrics(metrics);
     }
 
+    pub fn generate_class_metrics(
+        &mut self,
+        parsers: &TSParsers,
+        source_code: &str,
+        language: String,
+        file_path: String,
+        tree: &Tree,
+    ) {
+        let visitor = TreeVisitor::new(parsers, language.clone());
+        let class_captures = visitor.get_class_nodes(tree, source_code);
+        for (node, tag) in &class_captures {
+            let node_type = node.kind();
+
+            let class_name = visitor.get_class_name(*node, tree, source_code);
+
+            let mut metrics = CodeMetric::new(
+                language.clone(),
+                file_path.clone(),
+                class_name,
+                node_type.to_string(),
+            );
+            metrics.generate_node_metrics(&node);
+            metrics.calculate_eloc(&node, source_code, &visitor);
+            metrics.calculate_cc(&node);
+
+            self.add_metrics(metrics);
+        }
+    }
+
     pub fn generate_function_metrics(
         &mut self,
         parsers: &TSParsers,
@@ -214,11 +245,11 @@ impl CodeMetrics {
     ) {
         let visitor = TreeVisitor::new(parsers, language.clone());
         let method_captures = visitor.get_method_nodes(tree, source_code);
-        for (node, tag) in method_captures {
+        for (node, tag) in &method_captures {
             let node_type = node.kind();
 
-            let method_name = visitor.get_method_name(node, tree, source_code);
-            let parameters_count = visitor.get_parameters_count(node, tree, source_code);
+            let method_name = visitor.get_method_name(*node, tree, source_code);
+            let parameters_count = visitor.get_parameters_count(*node, tree, source_code);
 
             let mut metrics = CodeMetric::new(
                 language.clone(),

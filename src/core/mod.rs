@@ -33,26 +33,35 @@ impl XStats {
                 .expect("Failed to set progress bar style"),
         );
 
-        for (index, file) in files.iter().enumerate() {
+        for file in &files {
             // Update the progress bar message
             prog_bar.set_message(file.to_string());
-
-            if let Some((language, tree, source_code)) = self.parsers.generate_tree(&file) {
-                self.metrics
-                    .generate_root_metrics(language.to_string(), file.clone(), &tree);
-                self.metrics.generate_function_metrics(
-                    &self.parsers,
-                    &source_code,
-                    language.to_string(),
-                    file.clone(),
-                    &tree,
-                );
-            }
-
+            self.process_file(file);
             prog_bar.inc(1);
         }
 
         prog_bar.finish_and_clear();
+    }
+
+    pub fn process_file(&mut self, file: &str) {
+        if let Some((language, tree, source_code)) = self.parsers.generate_tree(&file) {
+            self.metrics
+                .generate_root_metrics(language.to_string(), file.to_string(), &tree);
+            self.metrics.generate_class_metrics(
+                &self.parsers,
+                &source_code,
+                language.to_string(),
+                file.to_string(),
+                &tree,
+            );
+            self.metrics.generate_function_metrics(
+                &self.parsers,
+                &source_code,
+                language.to_string(),
+                file.to_string(),
+                &tree,
+            );
+        }
     }
 
     pub fn save_data(&self) {
