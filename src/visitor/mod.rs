@@ -163,4 +163,27 @@ impl<'a> TreeVisitor<'a> {
 
         empty_lines_count
     }
+
+    pub fn get_comments_count(&self, node: Node, tree: &'a Tree, source_code: &str) -> usize {
+        let query_string = match self.language.as_str() {
+            "Java" => "[(line_comment) @comment (block_comment) @comment]",
+            "Python" => "[(comment) @comment (expression_statement (string) @comment)]",
+            _ => {
+                eprintln!("Unsupported language: {}", self.language);
+                return 0; // Return 0 for unsupported languages
+            }
+        };
+
+        let parser = match self.parsers.get_parser(&self.language) {
+            Some(p) => p,
+            None => {
+                eprintln!("Parser not found for language: {}", self.language);
+                return 0;
+            }
+        };
+
+        let query_result = parser.query_tree(&node, tree, source_code, query_string);
+        let comments_count = query_result.len();
+        comments_count
+    }
 }

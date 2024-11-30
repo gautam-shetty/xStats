@@ -45,8 +45,13 @@ impl XStats {
 
     pub fn process_file(&mut self, file: &str) {
         if let Some((language, tree, source_code)) = self.parsers.generate_tree(&file) {
-            self.metrics
-                .generate_root_metrics(language.to_string(), file.to_string(), &tree);
+            self.metrics.generate_root_metrics(
+                &self.parsers,
+                &source_code,
+                language.to_string(),
+                file.to_string(),
+                &tree,
+            );
             self.metrics.generate_class_metrics(
                 &self.parsers,
                 &source_code,
@@ -97,6 +102,7 @@ impl XStats {
             "node_type".to_string(),
             "aloc".to_string(),
             "eloc".to_string(),
+            "noc".to_string(),
             "cc".to_string(),
             "pc".to_string(),
         ]); // Add header row
@@ -112,6 +118,7 @@ impl XStats {
                 metric.node_type.clone(),
                 metric.aloc.to_string(),
                 metric.eloc.to_string(),
+                metric.noc.to_string(),
                 metric.cc.to_string(),
                 metric.pc.to_string(),
             ]);

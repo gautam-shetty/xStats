@@ -67,6 +67,8 @@ pub struct CodeMetric {
     pub aloc: u32,
     /// The number of empty lines of code in the node.
     pub eloc: u32,
+    /// The number of comment lines of code in the node.
+    pub noc: u32,
     /// The cyclomatic complexity of the node.
     pub cc: u32,
     /// The number of parameters the node takes.
@@ -95,6 +97,7 @@ impl CodeMetric {
             node_type,
             aloc: 0,
             eloc: 0,
+            noc: 0,
             cc: 0,
             pc: 0,
         }
@@ -127,6 +130,16 @@ impl CodeMetric {
 
     pub fn calculate_eloc(&mut self, node: &Node, source_code: &str, visitor: &TreeVisitor) {
         self.eloc = visitor.count_empty_lines(*node, source_code) as u32;
+    }
+
+    pub fn calculate_noc(
+        &mut self,
+        node: &Node,
+        tree: &Tree,
+        source_code: &str,
+        visitor: &TreeVisitor,
+    ) {
+        self.noc = visitor.get_comments_count(*node, tree, source_code) as u32;
     }
 
     fn count_decision_points(&self, node: Node, decision_points: &Vec<&str>) -> usize {
@@ -193,7 +206,15 @@ impl CodeMetrics {
         self.metrics.push(metrics);
     }
 
-    pub fn generate_root_metrics(&mut self, language: String, file_path: String, tree: &Tree) {
+    pub fn generate_root_metrics(
+        &mut self,
+        parsers: &TSParsers,
+        source_code: &str,
+        language: String,
+        file_path: String,
+        tree: &Tree,
+    ) {
+        let visitor = TreeVisitor::new(parsers, language.clone());
         let root_node = tree.root_node();
         let root_type = root_node.kind();
         let mut metrics = CodeMetric::new(
@@ -203,6 +224,10 @@ impl CodeMetrics {
             root_type.to_string(),
         );
         metrics.generate_node_metrics(&root_node);
+        metrics.calculate_eloc(&root_node, source_code, &visitor);
+        metrics.calculate_noc(&root_node, tree, source_code, &visitor);
+        metrics.calculate_cc(&root_node);
+
         self.add_metrics(metrics);
     }
 
@@ -229,6 +254,7 @@ impl CodeMetrics {
             );
             metrics.generate_node_metrics(&node);
             metrics.calculate_eloc(&node, source_code, &visitor);
+            metrics.calculate_noc(node, tree, source_code, &visitor);
             metrics.calculate_cc(&node);
 
             self.add_metrics(metrics);
@@ -260,6 +286,7 @@ impl CodeMetrics {
             metrics.generate_node_metrics(&node);
             metrics.load_pc(parameters_count as u32);
             metrics.calculate_eloc(&node, source_code, &visitor);
+            metrics.calculate_noc(node, tree, source_code, &visitor);
             metrics.calculate_cc(&node);
 
             self.add_metrics(metrics);
