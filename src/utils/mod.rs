@@ -1,7 +1,9 @@
 use csv::Writer;
+use serde_json::to_writer;
 use std::error::Error;
 use std::fs;
 use std::fs::read_dir;
+use std::fs::File;
 use std::path::Path;
 
 pub fn read_file(file_path: &str) -> String {
@@ -60,5 +62,32 @@ pub fn save_to_csv(file_path: &str, data: Vec<Vec<String>>) -> Result<(), Box<dy
 
     // Flush to ensure all data is written to the file
     writer.flush()?;
+    Ok(())
+}
+
+pub fn save_to_json(file_path: &str, data: Vec<Vec<String>>) -> Result<(), Box<dyn Error>> {
+    let json_data: Vec<serde_json::Value> = if data.is_empty() {
+        Vec::new()
+    } else {
+        let headers = data[0].clone();
+        data[1..]
+            .iter()
+            .map(|row| {
+                let mut map = serde_json::Map::new();
+                for (header, value) in headers.iter().zip(row) {
+                    map.insert(header.clone(), serde_json::Value::String(value.clone()));
+                }
+                serde_json::Value::Object(map)
+            })
+            .collect()
+    };
+
+    let path = Path::new(file_path);
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+
+    let file = File::create(file_path)?;
+    to_writer(file, &json_data)?;
     Ok(())
 }

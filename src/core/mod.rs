@@ -1,6 +1,6 @@
 use crate::metrics::CodeMetrics;
 use crate::parser::TSParsers;
-use crate::utils::{save_to_csv, traverse_dir};
+use crate::utils::{save_to_csv, save_to_json, traverse_dir};
 use indicatif::{ProgressBar, ProgressStyle};
 
 pub struct XStats {
@@ -64,12 +64,27 @@ impl XStats {
         }
     }
 
-    pub fn save_data(&self) {
-        self.save_metrics();
+    pub fn save_data_as_csv(&self) {
+        let output_file = format!("{}/metrics.csv", self.output_dir);
+        let data = self.save_metrics();
+        if save_to_csv(&output_file, data).is_ok() {
+            println!("Code metrics saved at {}", output_file);
+        } else {
+            println!("Failed to save metrics to CSV");
+        }
     }
 
-    pub fn save_metrics(&self) {
-        let output_file = format!("{}/metrics.csv", self.output_dir);
+    pub fn save_data_as_json(&self) {
+        let output_file = format!("{}/metrics.json", self.output_dir);
+        let data: Vec<Vec<String>> = self.save_metrics();
+        if save_to_json(&output_file, data).is_ok() {
+            println!("Code metrics saved at {}", output_file);
+        } else {
+            println!("Failed to save metrics to JSON");
+        }
+    }
+
+    pub fn save_metrics(&self) -> Vec<Vec<String>> {
         let mut data = Vec::new();
         data.push(vec![
             "language".to_string(),
@@ -102,10 +117,6 @@ impl XStats {
             ]);
         }
 
-        if save_to_csv(&output_file, data).is_ok() {
-            println!("Code metrics saved at {}", output_file);
-        } else {
-            println!("Failed to save metrics to CSV");
-        }
+        data
     }
 }

@@ -9,6 +9,9 @@ struct Opts {
 
     #[clap(short = 'o', long = "output")]
     output: String,
+
+    #[clap(short = 'f', long = "format", default_value = "json")]
+    format: String,
 }
 
 fn main() {
@@ -16,5 +19,10 @@ fn main() {
 
     let mut xstats = core::XStats::new(opts.target, opts.output);
     xstats.run();
-    xstats.save_data();
+
+    match opts.format.as_str() {
+        "json" => xstats.save_data_as_json(),
+        "csv" => xstats.save_data_as_csv(),
+        _ => eprintln!("Unsupported format: {}", opts.format),
+    }
 }
