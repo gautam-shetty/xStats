@@ -186,4 +186,41 @@ impl<'a> TreeVisitor<'a> {
         let comments_count = query_result.len();
         comments_count
     }
+
+    pub fn check_if_broken(&self, node: Node) -> bool {
+        // NOTE: COMPUTE HEAVY FUNCTION
+
+        let skip_nodes = match self.language.as_str() {
+            "Java" => vec![
+                "class_declaration",
+                "method_declaration",
+                "constructor_declaration",
+            ],
+            "Python" => vec!["class_definition", "function_definition"],
+            _ => {
+                eprintln!("Unsupported language: {}", self.language);
+                return false; // Return 0 for unsupported languages
+            }
+        };
+
+        let mut is_broken = false;
+
+        fn traverse(node: Node, is_broken: &mut bool, skip_nodes: &[&str]) {
+            let mut cursor = node.walk();
+            if node.kind() == "ERROR" || node.is_missing() {
+                *is_broken = true;
+                return;
+            }
+
+            for child in node.children(&mut cursor) {
+                if skip_nodes.contains(&child.kind()) {
+                    continue;
+                }
+                traverse(child, is_broken, skip_nodes);
+            }
+        }
+
+        traverse(node, &mut is_broken, &skip_nodes);
+        is_broken
+    }
 }

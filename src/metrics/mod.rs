@@ -63,6 +63,8 @@ pub struct CodeMetric {
     pub end_row: u32,
     /// The ending column number of the node in the source file.
     pub end_col: u32,
+    /// Indicates whether the node is broken or has missing elements (e.g., syntax error).
+    pub is_broken: bool,
     /// The number of actual lines of code in the node.
     pub aloc: u32,
     /// The number of empty lines of code in the node.
@@ -93,6 +95,7 @@ impl CodeMetric {
             start_col: 0,
             end_row: 0,
             end_col: 0,
+            is_broken: false,
             node_name,
             node_type,
             aloc: 0,
@@ -103,9 +106,10 @@ impl CodeMetric {
         }
     }
 
-    pub fn generate_node_metrics(&mut self, node: &Node) {
+    pub fn generate_node_metrics(&mut self, node: &Node, visitor: &TreeVisitor) {
         self.load_range(node);
         self.calculate_aloc(node);
+        self.check_broken(node, visitor);
     }
 
     fn load_range(&mut self, node: &Node) {
@@ -140,6 +144,10 @@ impl CodeMetric {
         visitor: &TreeVisitor,
     ) {
         self.noc = visitor.get_comments_count(*node, tree, source_code) as u32;
+    }
+
+    fn check_broken(&mut self, node: &Node, visitor: &TreeVisitor) {
+        self.is_broken = visitor.check_if_broken(*node);
     }
 
     fn count_decision_points(&self, node: Node, decision_points: &Vec<&str>) -> usize {
@@ -223,7 +231,7 @@ impl CodeMetrics {
             get_file_name(&file_path),
             root_type.to_string(),
         );
-        metrics.generate_node_metrics(&root_node);
+        metrics.generate_node_metrics(&root_node, &visitor);
         metrics.calculate_eloc(&root_node, source_code, &visitor);
         metrics.calculate_noc(&root_node, tree, source_code, &visitor);
         metrics.calculate_cc(&root_node);
@@ -252,7 +260,7 @@ impl CodeMetrics {
                 class_name,
                 node_type.to_string(),
             );
-            metrics.generate_node_metrics(&node);
+            metrics.generate_node_metrics(&node, &visitor);
             metrics.calculate_eloc(&node, source_code, &visitor);
             metrics.calculate_noc(node, tree, source_code, &visitor);
             metrics.calculate_cc(&node);
@@ -283,7 +291,7 @@ impl CodeMetrics {
                 method_name,
                 node_type.to_string(),
             );
-            metrics.generate_node_metrics(&node);
+            metrics.generate_node_metrics(&node, &visitor);
             metrics.load_pc(parameters_count as u32);
             metrics.calculate_eloc(&node, source_code, &visitor);
             metrics.calculate_noc(node, tree, source_code, &visitor);
