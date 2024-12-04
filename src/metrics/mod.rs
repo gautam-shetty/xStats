@@ -75,6 +75,10 @@ pub struct CodeMetric {
     pub dcloc: u32,
     /// Number of imports in the node.
     pub noi: u32,
+    /// Number of classes in the node.
+    pub noc: u32,
+    /// Number of methods in the node.
+    pub nom: u32,
     /// The cyclomatic complexity of the node.
     pub cc: u32,
     /// The number of parameters the node takes.
@@ -107,6 +111,8 @@ impl CodeMetric {
             cloc: 0,
             dcloc: 0,
             noi: 0,
+            noc: 0,
+            nom: 0,
             cc: 0,
             pc: 0,
         }
@@ -162,6 +168,30 @@ impl CodeMetric {
         visitor: &TreeVisitor,
     ) {
         self.noi = visitor.count_imports(*node, tree, source_code) as u32;
+    }
+
+    pub fn calculate_noc(
+        &mut self,
+        node: &Node,
+        tree: &Tree,
+        source_code: &str,
+        visitor: &TreeVisitor,
+    ) {
+        self.noc = 0;
+        let class_captures = visitor.get_class_nodes(node, tree, source_code);
+        self.noc = class_captures.len() as u32;
+    }
+
+    pub fn calculate_nom(
+        &mut self,
+        node: &Node,
+        tree: &Tree,
+        source_code: &str,
+        visitor: &TreeVisitor,
+    ) {
+        self.nom = 0;
+        let method_captures = visitor.get_method_nodes(node, tree, source_code);
+        self.nom = method_captures.len() as u32;
     }
 
     fn check_broken(&mut self, node: &Node, visitor: &TreeVisitor) {
@@ -253,6 +283,8 @@ impl CodeMetrics {
         metrics.calculate_eloc(&root_node, source_code, &visitor);
         metrics.calculate_cloc_dcloc(&root_node, tree, source_code, &visitor);
         metrics.calculate_noi(&root_node, tree, source_code, &visitor);
+        metrics.calculate_noc(&root_node, tree, source_code, &visitor);
+        metrics.calculate_nom(&root_node, tree, source_code, &visitor);
         metrics.calculate_cc(&root_node);
 
         self.add_metrics(metrics);
@@ -267,7 +299,8 @@ impl CodeMetrics {
         tree: &Tree,
     ) {
         let visitor = TreeVisitor::new(parsers, language.clone());
-        let class_captures = visitor.get_class_nodes(tree, source_code);
+        let node = tree.root_node();
+        let class_captures = visitor.get_class_nodes(&node, tree, source_code);
         for (node, tag) in &class_captures {
             let node_type = node.kind();
 
@@ -283,6 +316,9 @@ impl CodeMetrics {
             metrics.calculate_eloc(&node, source_code, &visitor);
             metrics.calculate_cloc_dcloc(node, tree, source_code, &visitor);
             metrics.calculate_noi(node, tree, source_code, &visitor);
+            metrics.calculate_noc(node, tree, source_code, &visitor);
+            metrics.noc -= 1; // Exclude the class itself
+            metrics.calculate_nom(node, tree, source_code, &visitor);
             metrics.calculate_cc(&node);
 
             self.add_metrics(metrics);
@@ -298,7 +334,8 @@ impl CodeMetrics {
         tree: &Tree,
     ) {
         let visitor = TreeVisitor::new(parsers, language.clone());
-        let method_captures = visitor.get_method_nodes(tree, source_code);
+        let node = tree.root_node();
+        let method_captures = visitor.get_method_nodes(&node, tree, source_code);
         for (node, tag) in &method_captures {
             let node_type = node.kind();
 
@@ -316,6 +353,9 @@ impl CodeMetrics {
             metrics.calculate_eloc(&node, source_code, &visitor);
             metrics.calculate_cloc_dcloc(node, tree, source_code, &visitor);
             metrics.calculate_noi(node, tree, source_code, &visitor);
+            metrics.calculate_noc(node, tree, source_code, &visitor);
+            metrics.calculate_nom(node, tree, source_code, &visitor);
+            metrics.nom -= 1; // Exclude the method itself
             metrics.calculate_cc(&node);
 
             self.add_metrics(metrics);

@@ -10,7 +10,12 @@ impl<'a> TreeVisitor<'a> {
         Self { parsers, language }
     }
 
-    pub fn get_class_nodes(&self, tree: &'a Tree, source_code: &'a str) -> Vec<(Node<'a>, String)> {
+    pub fn get_class_nodes(
+        &self,
+        node: &'a Node,
+        tree: &'a Tree,
+        source_code: &'a str,
+    ) -> Vec<(Node<'a>, String)> {
         let query_string = match self.language.as_str() {
             "Java" => "(class_declaration ) @definition",
             "Python" => "(class_definition ) @definition",
@@ -28,8 +33,8 @@ impl<'a> TreeVisitor<'a> {
             }
         };
 
-        let root_node = tree.root_node();
-        parser.query_tree(&root_node, tree, source_code, query_string)
+        // let root_node = tree.root_node();
+        parser.query_tree(&node, tree, source_code, query_string)
     }
 
     pub fn get_class_name(&self, class_node: Node, tree: &'a Tree, source_code: &'a str) -> String {
@@ -61,6 +66,7 @@ impl<'a> TreeVisitor<'a> {
 
     pub fn get_method_nodes(
         &self,
+        node: &'a Node,
         tree: &'a Tree,
         source_code: &'a str,
     ) -> Vec<(Node<'a>, String)> {
@@ -81,8 +87,7 @@ impl<'a> TreeVisitor<'a> {
             }
         };
 
-        let root_node = tree.root_node();
-        parser.query_tree(&root_node, tree, source_code, query_string)
+        parser.query_tree(&node, tree, source_code, query_string)
     }
 
     pub fn get_method_name(
