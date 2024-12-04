@@ -73,6 +73,8 @@ pub struct CodeMetric {
     pub cloc: u32,
     /// The number of document comment lines of code in the node.
     pub dcloc: u32,
+    /// Number of imports in the node.
+    pub noi: u32,
     /// The cyclomatic complexity of the node.
     pub cc: u32,
     /// The number of parameters the node takes.
@@ -104,6 +106,7 @@ impl CodeMetric {
             eloc: 0,
             cloc: 0,
             dcloc: 0,
+            noi: 0,
             cc: 0,
             pc: 0,
         }
@@ -146,9 +149,19 @@ impl CodeMetric {
         source_code: &str,
         visitor: &TreeVisitor,
     ) {
-        let (cloc, dcloc) = visitor.get_comments_count(*node, tree, source_code);
+        let (cloc, dcloc) = visitor.count_comments(*node, tree, source_code);
         self.cloc = cloc as u32;
         self.dcloc = dcloc as u32;
+    }
+
+    pub fn calculate_noi(
+        &mut self,
+        node: &Node,
+        tree: &Tree,
+        source_code: &str,
+        visitor: &TreeVisitor,
+    ) {
+        self.noi = visitor.count_imports(*node, tree, source_code) as u32;
     }
 
     fn check_broken(&mut self, node: &Node, visitor: &TreeVisitor) {
@@ -239,6 +252,7 @@ impl CodeMetrics {
         metrics.generate_node_metrics(&root_node, &visitor);
         metrics.calculate_eloc(&root_node, source_code, &visitor);
         metrics.calculate_cloc_dcloc(&root_node, tree, source_code, &visitor);
+        metrics.calculate_noi(&root_node, tree, source_code, &visitor);
         metrics.calculate_cc(&root_node);
 
         self.add_metrics(metrics);
@@ -268,6 +282,7 @@ impl CodeMetrics {
             metrics.generate_node_metrics(&node, &visitor);
             metrics.calculate_eloc(&node, source_code, &visitor);
             metrics.calculate_cloc_dcloc(node, tree, source_code, &visitor);
+            metrics.calculate_noi(node, tree, source_code, &visitor);
             metrics.calculate_cc(&node);
 
             self.add_metrics(metrics);
@@ -288,7 +303,7 @@ impl CodeMetrics {
             let node_type = node.kind();
 
             let method_name = visitor.get_method_name(*node, tree, source_code);
-            let parameters_count = visitor.get_parameters_count(*node, tree, source_code);
+            let parameters_count = visitor.count_parameters(*node, tree, source_code);
 
             let mut metrics = CodeMetric::new(
                 language.clone(),
@@ -300,6 +315,7 @@ impl CodeMetrics {
             metrics.load_pc(parameters_count as u32);
             metrics.calculate_eloc(&node, source_code, &visitor);
             metrics.calculate_cloc_dcloc(node, tree, source_code, &visitor);
+            metrics.calculate_noi(node, tree, source_code, &visitor);
             metrics.calculate_cc(&node);
 
             self.add_metrics(metrics);

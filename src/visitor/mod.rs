@@ -119,7 +119,7 @@ impl<'a> TreeVisitor<'a> {
         method_name_text.to_string()
     }
 
-    pub fn get_parameters_count(
+    pub fn count_parameters(
         &self,
         method_node: Node,
         tree: &'a Tree,
@@ -164,12 +164,7 @@ impl<'a> TreeVisitor<'a> {
         empty_lines_count
     }
 
-    pub fn get_comments_count(
-        &self,
-        node: Node,
-        tree: &'a Tree,
-        source_code: &str,
-    ) -> (usize, usize) {
+    pub fn count_comments(&self, node: Node, tree: &'a Tree, source_code: &str) -> (usize, usize) {
         let query_string = match self.language.as_str() {
             "Java" => "[(line_comment) @comment (block_comment) @comment]",
             "Python" => "[(comment) @comment (expression_statement (string) @comment)]",
@@ -212,6 +207,28 @@ impl<'a> TreeVisitor<'a> {
         }
 
         (total_comments_count, doc_comments_count)
+    }
+
+    pub fn count_imports(&self, node: Node, tree: &'a Tree, source_code: &str) -> usize {
+        let query_string = match self.language.as_str() {
+            "Java" => "(import_declaration) @import",
+            "Python" => "[(import_statement) @import (import_from_statement) @import]",
+            _ => {
+                eprintln!("Unsupported language: {}", self.language);
+                return 0; // Return 0 for unsupported languages
+            }
+        };
+
+        let parser = match self.parsers.get_parser(&self.language) {
+            Some(p) => p,
+            None => {
+                eprintln!("Parser not found for language: {}", self.language);
+                return 0;
+            }
+        };
+
+        let query_result = parser.query_tree(&node, tree, source_code, query_string);
+        query_result.len() // Return the count of captured import nodes
     }
 
     pub fn check_if_broken(&self, node: Node) -> bool {

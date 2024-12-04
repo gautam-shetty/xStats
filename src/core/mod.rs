@@ -105,6 +105,7 @@ impl XStats {
             "eloc".to_string(),
             "cloc".to_string(),
             "dcloc".to_string(),
+            "noi".to_string(),
             "cc".to_string(),
             "pc".to_string(),
         ]); // Add header row
@@ -123,6 +124,7 @@ impl XStats {
                 metric.eloc.to_string(),
                 metric.cloc.to_string(),
                 metric.dcloc.to_string(),
+                metric.noi.to_string(),
                 metric.cc.to_string(),
                 metric.pc.to_string(),
             ]);
