@@ -70,7 +70,9 @@ pub struct CodeMetric {
     /// The number of empty lines of code in the node.
     pub eloc: u32,
     /// The number of comment lines of code in the node.
-    pub noc: u32,
+    pub cloc: u32,
+    /// The number of document comment lines of code in the node.
+    pub dcloc: u32,
     /// The cyclomatic complexity of the node.
     pub cc: u32,
     /// The number of parameters the node takes.
@@ -100,7 +102,8 @@ impl CodeMetric {
             node_type,
             aloc: 0,
             eloc: 0,
-            noc: 0,
+            cloc: 0,
+            dcloc: 0,
             cc: 0,
             pc: 0,
         }
@@ -136,14 +139,16 @@ impl CodeMetric {
         self.eloc = visitor.count_empty_lines(*node, source_code) as u32;
     }
 
-    pub fn calculate_noc(
+    pub fn calculate_cloc_dcloc(
         &mut self,
         node: &Node,
         tree: &Tree,
         source_code: &str,
         visitor: &TreeVisitor,
     ) {
-        self.noc = visitor.get_comments_count(*node, tree, source_code) as u32;
+        let (cloc, dcloc) = visitor.get_comments_count(*node, tree, source_code);
+        self.cloc = cloc as u32;
+        self.dcloc = dcloc as u32;
     }
 
     fn check_broken(&mut self, node: &Node, visitor: &TreeVisitor) {
@@ -233,7 +238,7 @@ impl CodeMetrics {
         );
         metrics.generate_node_metrics(&root_node, &visitor);
         metrics.calculate_eloc(&root_node, source_code, &visitor);
-        metrics.calculate_noc(&root_node, tree, source_code, &visitor);
+        metrics.calculate_cloc_dcloc(&root_node, tree, source_code, &visitor);
         metrics.calculate_cc(&root_node);
 
         self.add_metrics(metrics);
@@ -262,7 +267,7 @@ impl CodeMetrics {
             );
             metrics.generate_node_metrics(&node, &visitor);
             metrics.calculate_eloc(&node, source_code, &visitor);
-            metrics.calculate_noc(node, tree, source_code, &visitor);
+            metrics.calculate_cloc_dcloc(node, tree, source_code, &visitor);
             metrics.calculate_cc(&node);
 
             self.add_metrics(metrics);
@@ -294,7 +299,7 @@ impl CodeMetrics {
             metrics.generate_node_metrics(&node, &visitor);
             metrics.load_pc(parameters_count as u32);
             metrics.calculate_eloc(&node, source_code, &visitor);
-            metrics.calculate_noc(node, tree, source_code, &visitor);
+            metrics.calculate_cloc_dcloc(node, tree, source_code, &visitor);
             metrics.calculate_cc(&node);
 
             self.add_metrics(metrics);

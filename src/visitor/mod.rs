@@ -164,13 +164,18 @@ impl<'a> TreeVisitor<'a> {
         empty_lines_count
     }
 
-    pub fn get_comments_count(&self, node: Node, tree: &'a Tree, source_code: &str) -> usize {
+    pub fn get_comments_count(
+        &self,
+        node: Node,
+        tree: &'a Tree,
+        source_code: &str,
+    ) -> (usize, usize) {
         let query_string = match self.language.as_str() {
             "Java" => "[(line_comment) @comment (block_comment) @comment]",
             "Python" => "[(comment) @comment (expression_statement (string) @comment)]",
             _ => {
                 eprintln!("Unsupported language: {}", self.language);
-                return 0; // Return 0 for unsupported languages
+                return (0, 0); // Return 0 for unsupported languages
             }
         };
 
@@ -178,17 +183,39 @@ impl<'a> TreeVisitor<'a> {
             Some(p) => p,
             None => {
                 eprintln!("Parser not found for language: {}", self.language);
-                return 0;
+                return (0, 0);
             }
         };
 
         let query_result = parser.query_tree(&node, tree, source_code, query_string);
-        let comments_count = query_result.len();
-        comments_count
+
+        let mut total_comments_count = 0;
+        let mut doc_comments_count = 0;
+
+        for (node, _) in query_result {
+            total_comments_count += 1;
+
+            // Extract the text of the comment
+            if let Ok(comment_text) = node.utf8_text(source_code.as_bytes()) {
+                if self.language == "Java" {
+                    // Check for Java doc comments (start with /**)
+                    if comment_text.starts_with("/**") {
+                        doc_comments_count += 1;
+                    }
+                } else if self.language == "Python" {
+                    // Check for Python docstrings (triple quotes)
+                    if comment_text.starts_with("\"\"\"") || comment_text.starts_with("'''") {
+                        doc_comments_count += 1;
+                    }
+                }
+            }
+        }
+
+        (total_comments_count, doc_comments_count)
     }
 
     pub fn check_if_broken(&self, node: Node) -> bool {
-        // NOTE: COMPUTE HEAVY FUNCTION
+        // NOTE: COMPUTE HEAVY FUNCTION, maybe?
 
         let skip_nodes = match self.language.as_str() {
             "Java" => vec![

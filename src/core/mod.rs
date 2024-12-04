@@ -103,7 +103,8 @@ impl XStats {
             "is_broken".to_string(),
             "aloc".to_string(),
             "eloc".to_string(),
-            "noc".to_string(),
+            "cloc".to_string(),
+            "dcloc".to_string(),
             "cc".to_string(),
             "pc".to_string(),
         ]); // Add header row
@@ -120,7 +121,8 @@ impl XStats {
                 metric.is_broken.to_string(),
                 metric.aloc.to_string(),
                 metric.eloc.to_string(),
-                metric.noc.to_string(),
+                metric.cloc.to_string(),
+                metric.dcloc.to_string(),
                 metric.cc.to_string(),
                 metric.pc.to_string(),
             ]);
