@@ -11,7 +11,9 @@ Currently supported code metrics and their descriptions
 | **is_broken** | If it has any error or missing node | &check; | &check; |
 | **aloc**      | Actual lines of code                | &check; | &check; |
 | **eloc**      | Empty lines of code                 | &check; | &check; |
-| **noc**       | No. of comments                     | &check; | &check; |
+| **cloc**      | Comments lines of code              | &check; | &check; |
+| **dcloc**     | Document comments lines of code     | &check; | &check; |
+| **noi**       | number of imports                   | &check; | &check; |
 | **cc**        | Cyclomatic complexity               | &check; | &check; |
 | **pc**        | Parameter count                     | &check; | &check; |
 | _language_    | Language of the code block          | &check; | &check; |
@@ -22,3 +24,5 @@ Currently supported code metrics and their descriptions
 | _end_col_     | End column of the code block        | &check; | &check; |
 | _node_name_   | Name of the node                    | &check; | &check; |
 | _node_type_   | Type of the node                    | &check; | &check; |
+
+> **Note**: If the node is broken, the rest of the metrics might not be accurate
