@@ -1,23 +1,55 @@
 use crate::metrics::CodeMetrics;
 use crate::parser::TSParsers;
+use crate::utils::git_manager::GitManager;
 use crate::utils::{save_to_csv, save_to_json, traverse_path};
 use indicatif::{ProgressBar, ProgressStyle};
 
 pub struct XStats {
     target_path: String,
     output_path: String,
+    git_manager: Option<GitManager>,
     parsers: TSParsers,
     metrics: CodeMetrics,
 }
 
 impl XStats {
-    pub fn new(target_path: String, output_path: String) -> Self {
+    pub fn new(target_path: String, output_path: String, multi_commit: bool) -> Self {
         let parsers = TSParsers::new();
+
+        let git_manager = if multi_commit {
+            Some(GitManager::new(&target_path).expect("Could not find git information."))
+        } else {
+            None
+        };
+
         Self {
             target_path,
             output_path,
+            git_manager,
             parsers,
             metrics: CodeMetrics::new(),
+        }
+    }
+
+    pub fn get_git_manager(&self) -> &GitManager {
+        self.git_manager
+            .as_ref()
+            .expect("GitManager was not instantiated for the target repository.")
+    }
+
+    pub fn print_commits(&self) {
+        if let Some(git_manager) = &self.git_manager {
+            match git_manager.get_all_commits() {
+                Ok(repo_commits) => {
+                    for commit in repo_commits {
+                        let commit_id = commit.id().to_string();
+                        println!("Commit ID: {}", commit_id);
+                    }
+                }
+                Err(e) => {
+                    println!("Failed to get commits: {}", e);
+                }
+            }
         }
     }
 

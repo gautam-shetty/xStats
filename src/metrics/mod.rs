@@ -284,9 +284,16 @@ impl CodeMetrics {
         metric.calculate_eloc(&root_node, source_code, &visitor);
         metric.calculate_cloc_dcloc(&root_node, tree, source_code, &visitor);
         metric.calculate_noi(&root_node, tree, source_code, &visitor);
+        metric.calculate_cc(&root_node);
 
         let class_nodes = visitor.get_class_nodes(&root_node, tree, source_code);
         metric.noc = class_nodes.len() as u32;
+
+        let method_nodes = visitor.get_method_nodes(&root_node, tree, source_code);
+        metric.nom = method_nodes.len() as u32;
+
+        self.add_metric(metric);
+
         self.generate_class_metrics(
             &parsers,
             &source_code,
@@ -296,9 +303,6 @@ impl CodeMetrics {
             &class_nodes,
             &visitor,
         );
-
-        let method_nodes = visitor.get_method_nodes(&root_node, tree, source_code);
-        metric.nom = method_nodes.len() as u32;
         self.generate_function_metrics(
             &parsers,
             &source_code,
@@ -308,10 +312,6 @@ impl CodeMetrics {
             &method_nodes,
             &visitor,
         );
-
-        metric.calculate_cc(&root_node);
-
-        self.add_metric(metric);
     }
 
     pub fn generate_class_metrics(
@@ -331,14 +331,14 @@ impl CodeMetrics {
 
             let mut metric =
                 CodeMetric::new(&language, &file_path, class_name, node_type.to_string());
-            metric.generate_node_metrics(&node, &visitor);
-            metric.calculate_eloc(&node, source_code, &visitor);
-            metric.calculate_cloc_dcloc(node, tree, source_code, &visitor);
-            metric.calculate_noi(node, tree, source_code, &visitor);
-            metric.calculate_noc(node, tree, source_code, &visitor);
+            metric.generate_node_metrics(&node, visitor);
+            metric.calculate_eloc(node, source_code, visitor);
+            metric.calculate_cloc_dcloc(node, tree, source_code, visitor);
+            metric.calculate_noi(node, tree, source_code, visitor);
+            metric.calculate_noc(node, tree, source_code, visitor);
             metric.noc -= 1; // Exclude the class itself
-            metric.calculate_nom(node, tree, source_code, &visitor);
-            metric.calculate_cc(&node);
+            metric.calculate_nom(node, tree, source_code, visitor);
+            metric.calculate_cc(node);
 
             self.add_metric(metric);
         }
@@ -354,8 +354,6 @@ impl CodeMetrics {
         method_captures: &Vec<(Node, String)>,
         visitor: &TreeVisitor,
     ) {
-        // let node = tree.root_node();
-        // let method_captures = visitor.get_method_nodes(&node, tree, source_code);
         for (node, tag) in method_captures {
             let node_type = node.kind();
 
@@ -364,15 +362,15 @@ impl CodeMetrics {
 
             let mut metric =
                 CodeMetric::new(&language, &file_path, method_name, node_type.to_string());
-            metric.generate_node_metrics(&node, &visitor);
+            metric.generate_node_metrics(&node, visitor);
             metric.load_pc(parameters_count as u32);
-            metric.calculate_eloc(&node, source_code, &visitor);
-            metric.calculate_cloc_dcloc(node, tree, source_code, &visitor);
-            metric.calculate_noi(node, tree, source_code, &visitor);
-            metric.calculate_noc(node, tree, source_code, &visitor);
-            metric.calculate_nom(node, tree, source_code, &visitor);
+            metric.calculate_eloc(node, source_code, visitor);
+            metric.calculate_cloc_dcloc(node, tree, source_code, visitor);
+            metric.calculate_noi(node, tree, source_code, visitor);
+            metric.calculate_noc(node, tree, source_code, visitor);
+            metric.calculate_nom(node, tree, source_code, visitor);
             metric.nom -= 1; // Exclude the method itself
-            metric.calculate_cc(&node);
+            metric.calculate_cc(node);
 
             self.add_metric(metric);
         }

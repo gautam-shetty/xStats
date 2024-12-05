@@ -6,6 +6,8 @@ use std::fs::read_dir;
 use std::fs::File;
 use std::path::Path;
 
+pub mod git_manager;
+
 pub fn read_file(file_path: &str) -> String {
     fs::read_to_string(file_path).expect(&format!("Failed to read the file {}", file_path))
 }

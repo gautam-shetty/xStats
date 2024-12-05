@@ -12,7 +12,7 @@ mod tests {
         let target_dir = format!("{}/example1", SAMPLES_DIR);
         let output_dir = SAMPLES_DIR.to_string();
 
-        let mut xstats = core::XStats::new(target_dir, output_dir);
+        let mut xstats = core::XStats::new(target_dir, output_dir, false);
         xstats.run();
         let metrics: Vec<Vec<String>> = xstats.get_metrics();
         let metrics_ref: Vec<Vec<&str>> = metrics
