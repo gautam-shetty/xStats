@@ -1,76 +1,75 @@
 use crate::metrics::CodeMetrics;
 use crate::parser::TSParsers;
-use crate::utils::{save_to_csv, save_to_json, traverse_dir};
+use crate::utils::{save_to_csv, save_to_json, traverse_path};
 use indicatif::{ProgressBar, ProgressStyle};
 
 pub struct XStats {
-    target_dir: String,
-    output_dir: String,
+    target_path: String,
+    output_path: String,
     parsers: TSParsers,
     metrics: CodeMetrics,
 }
 
 impl XStats {
-    pub fn new(target_dir: String, output_dir: String) -> Self {
+    pub fn new(target_path: String, output_path: String) -> Self {
         let parsers = TSParsers::new();
         Self {
-            target_dir,
-            output_dir,
+            target_path,
+            output_path,
             parsers,
             metrics: CodeMetrics::new(),
         }
     }
 
     pub fn run(&mut self) {
-        let files = traverse_dir(&self.target_dir);
-        let file_count = files.len();
-        let prog_bar = ProgressBar::new(file_count as u64);
-        prog_bar.set_style(
-            ProgressStyle::default_bar()
-                .template(
-                    "[{elapsed}] {bar:100} [{pos}/{len}]\n{spinner:.green} Processing file: {msg}",
-                )
-                .expect("Failed to set progress bar style"),
-        );
+        match traverse_path(&self.target_path) {
+            Ok(files) => {
+                if files.is_empty() {
+                    println!(
+                        "No files to process in the target path {}",
+                        self.target_path
+                    );
+                } else {
+                    let file_count = files.len();
+                    let prog_bar = ProgressBar::new(file_count as u64);
+                    prog_bar.set_style(
+                        ProgressStyle::default_bar()
+                            .template(
+                                "[{elapsed}] {bar:100} [{pos}/{len}]\n{spinner:.green} Processing file: {msg}",
+                            )
+                            .expect("Failed to set progress bar style"),
+                    );
 
-        for file in &files {
-            // Update the progress bar message
-            prog_bar.set_message(file.to_string());
-            self.process_file(file);
-            prog_bar.inc(1);
+                    // Analyze each file
+                    for file in &files {
+                        prog_bar.set_message(file.to_string());
+                        self.process_file(file);
+                        prog_bar.inc(1);
+                    }
+
+                    prog_bar.finish_and_clear();
+                }
+            }
+            Err(e) => {
+                println!("{}", e);
+            }
         }
-
-        prog_bar.finish_and_clear();
     }
 
-    pub fn process_file(&mut self, file: &str) {
+    fn process_file(&mut self, file: &str) {
         if let Some((language, tree, source_code)) = self.parsers.generate_tree(&file) {
             self.metrics.generate_root_metrics(
                 &self.parsers,
                 &source_code,
-                language.to_string(),
-                file.to_string(),
-                &tree,
-            );
-            self.metrics.generate_class_metrics(
-                &self.parsers,
-                &source_code,
-                language.to_string(),
-                file.to_string(),
-                &tree,
-            );
-            self.metrics.generate_function_metrics(
-                &self.parsers,
-                &source_code,
-                language.to_string(),
-                file.to_string(),
+                &language.to_string(),
+                &file.to_string(),
                 &tree,
             );
         }
     }
 
     pub fn save_data_as_csv(&self) {
-        let output_file = format!("{}/metrics.csv", self.output_dir);
+        let output_file = format!("{}/metrics.csv", self.output_path);
         let data = self.get_metrics();
         if save_to_csv(&output_file, data).is_ok() {
             println!("Code metrics saved at {}", output_file);
@@ -80,7 +79,7 @@ impl XStats {
     }
 
     pub fn save_data_as_json(&self) {
-        let output_file = format!("{}/metrics.json", self.output_dir);
+        let output_file = format!("{}/metrics.json", self.output_path);
         let data: Vec<Vec<String>> = self.get_metrics();
         if save_to_json(&output_file, data).is_ok() {
             println!("Code metrics saved at {}", output_file);

@@ -3,7 +3,7 @@ pub use tree_sitter::{
     Language, Node, Parser, Query, QueryCaptures, QueryCursor, QueryMatches, Tree,
 };
 
-pub fn get_grammar_pairs() -> Vec<(&'static str, Language, Vec<&'static str>)> {
+pub fn get_grammar_info() -> Vec<(&'static str, Language, Vec<&'static str>)> {
     vec![
         ("Java", tree_sitter_java::LANGUAGE.into(), vec![".java"]),
         ("Python", tree_sitter_python::LANGUAGE.into(), vec![".py"]),
@@ -67,7 +67,7 @@ pub struct TSParsers {
 
 impl TSParsers {
     pub fn new() -> Self {
-        let ts_parsers = get_grammar_pairs()
+        let ts_parsers = get_grammar_info()
             .into_iter()
             .map(|(name, grammar, extensions)| {
                 let mut parser = TSParser::new(name, grammar);

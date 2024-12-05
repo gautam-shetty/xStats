@@ -6,8 +6,11 @@ pub struct TreeVisitor<'a> {
 }
 
 impl<'a> TreeVisitor<'a> {
-    pub fn new(parsers: &'a TSParsers, language: String) -> Self {
-        Self { parsers, language }
+    pub fn new(parsers: &'a TSParsers, language: &String) -> Self {
+        Self {
+            parsers,
+            language: language.to_string(),
+        }
     }
 
     pub fn get_class_nodes(

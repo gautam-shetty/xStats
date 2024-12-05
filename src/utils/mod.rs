@@ -27,24 +27,33 @@ pub fn get_file_extension(file_path: &str) -> String {
     }
 }
 
-pub fn traverse_dir(dir_path: &str) -> Vec<String> {
+pub fn traverse_path(dir_path: &str) -> Result<Vec<String>, String> {
     let mut files = Vec::new();
     let path = Path::new(dir_path);
 
-    if path.is_dir() {
-        for entry in read_dir(path).expect("Failed to read directory") {
-            let entry = entry.expect("Failed to read entry");
+    if !path.exists() {
+        return Err(format!("Path does not exist: {}", dir_path));
+    }
+
+    if path.is_file() {
+        files.push(path.to_str().unwrap().to_string());
+    } else if path.is_dir() {
+        for entry in
+            read_dir(path).map_err(|e| format!("Failed to read directory '{}': {}", dir_path, e))?
+        {
+            let entry =
+                entry.map_err(|e| format!("Failed to read entry in '{}': {}", dir_path, e))?;
             let path = entry.path();
 
             if path.is_dir() {
-                files.extend(traverse_dir(path.to_str().unwrap()));
+                files.extend(traverse_path(path.to_str().unwrap())?);
             } else {
                 files.push(path.to_str().unwrap().to_string());
             }
         }
     }
 
-    files
+    Ok(files)
 }
 
 pub fn save_to_csv(file_path: &str, data: Vec<Vec<String>>) -> Result<(), Box<dyn Error>> {
