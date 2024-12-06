@@ -2,47 +2,56 @@ use crate::parser::{Node, TSParsers, Tree};
 use crate::utils::get_file_name;
 use crate::visitor::TreeVisitor;
 
-pub fn get_node_groups() -> Vec<(&'static str, Vec<(&'static str, Vec<&'static str>)>)> {
-    vec![
-        (
-            "Java",
-            vec![(
-                "decision_point_nodes",
-                vec![
-                    "if_statement",
-                    "else_clause",
-                    "for_statement",
-                    "while_statement",
-                    "do_statement",
-                    "switch_expression",
-                    "switch_statement",
-                    "catch_clause",
-                    "conditional_expression",
-                    "lambda_expression",
-                    "method_reference",
-                ],
-            )],
-        ),
-        (
-            "Python",
-            vec![(
-                "decision_point_nodes",
-                vec![
-                    "if_statement",
-                    "elif_clause",
-                    "for_statement",
-                    "while_statement",
-                    "with_statement",
-                    "try_statement",
-                    "except_clause",
-                    "match_statement",
-                    "case_clause",
-                    "conditional_expression",
-                    "lambda",
-                ],
-            )],
-        ),
-    ]
+pub fn get_node_group(language: &str, group_name: &str) -> Vec<&'static str> {
+    const JAVA_DECISION_POINTS: &[&str] = &[
+        "if_statement",
+        "else_clause",
+        "for_statement",
+        "while_statement",
+        "do_statement",
+        "switch_expression",
+        "switch_statement",
+        "catch_clause",
+        "conditional_expression",
+        "lambda_expression",
+        "method_reference",
+    ];
+
+    const JAVA_DECISION_POINTS_SKIP_NODES: &[&str] = &[
+        "class_declaration",
+        "method_declaration",
+        "constructor_declaration",
+    ];
+
+    const PYTHON_DECISION_POINTS: &[&str] = &[
+        "if_statement",
+        "elif_clause",
+        "for_statement",
+        "while_statement",
+        "with_statement",
+        "try_statement",
+        "except_clause",
+        "match_statement",
+        "case_clause",
+        "conditional_expression",
+        "lambda",
+    ];
+
+    const PYTHON_DECISION_POINTS_SKIP_NODES: &[&str] = &["class_definition", "function_definition"];
+
+    match (language, group_name) {
+        ("Java", "decision_point_nodes") => JAVA_DECISION_POINTS.to_vec(),
+        ("Python", "decision_point_nodes") => PYTHON_DECISION_POINTS.to_vec(),
+        ("Java", "decision_point_skip_nodes") => JAVA_DECISION_POINTS_SKIP_NODES.to_vec(),
+        ("Python", "decision_point_skip_nodes") => PYTHON_DECISION_POINTS_SKIP_NODES.to_vec(),
+        _ => {
+            eprintln!(
+                "Unsupported language or group name: {} - {}",
+                language, group_name
+            );
+            vec![]
+        }
+    }
 }
 
 /// Represents metrics for a piece of code, such as a method or function.
@@ -118,101 +127,61 @@ impl CodeMetric {
         }
     }
 
-    pub fn generate_node_metrics(&mut self, node: &Node, visitor: &TreeVisitor) {
-        self.load_range(node);
-        self.calculate_aloc(node);
-        self.check_broken(node, visitor);
+    /// Generate metrics for the node - start and end positions, aloc, and broken status
+    pub fn generate_simple_node_metrics(&mut self, visitor: &TreeVisitor, node: &Node) {
+        self.load_range_aloc(node);
+        self.is_broken = visitor.check_if_broken(*node);
     }
 
-    fn load_range(&mut self, node: &Node) {
-        let start_position = node.start_position();
-        let end_position = node.end_position();
-        let offset = 1;
-        self.start_row = (start_position.row + offset) as u32;
-        self.start_col = (start_position.column + offset) as u32;
-        self.end_row = (end_position.row + offset) as u32;
-        self.end_col = (end_position.column + offset) as u32;
+    /// Load the range and aloc of the node
+    fn load_range_aloc(&mut self, node: &Node) {
+        let (start, end) = (node.start_position(), node.end_position());
+        self.start_row = start.row as u32 + 1;
+        self.start_col = start.column as u32 + 1;
+        self.end_row = end.row as u32 + 1;
+        self.end_col = end.column as u32 + 1;
+
+        self.aloc = (end.row - start.row + 1) as u32;
     }
 
+    /// Load the parameter count of the node
     pub fn load_pc(&mut self, pc: u32) {
         self.pc = pc;
     }
 
-    fn calculate_aloc(&mut self, node: &Node) {
-        let start_line = node.start_position().row;
-        let end_line = node.end_position().row;
-        self.aloc = (end_line - start_line + 1) as u32;
+    /// Calculate the number of empty lines in the node
+    pub fn calculate_eloc(&mut self, visitor: &TreeVisitor, node: &Node) {
+        self.eloc = visitor.count_empty_lines(*node) as u32;
     }
 
-    pub fn calculate_eloc(&mut self, node: &Node, source_code: &str, visitor: &TreeVisitor) {
-        self.eloc = visitor.count_empty_lines(*node, source_code) as u32;
-    }
-
-    pub fn calculate_cloc_dcloc(
-        &mut self,
-        node: &Node,
-        tree: &Tree,
-        source_code: &str,
-        visitor: &TreeVisitor,
-    ) {
-        let (cloc, dcloc) = visitor.count_comments(*node, tree, source_code);
+    pub fn calculate_cloc_dcloc(&mut self, visitor: &TreeVisitor, comment_nodes: &Vec<Node>) {
+        let (cloc, dcloc) = visitor.count_comments(comment_nodes);
         self.cloc = cloc as u32;
         self.dcloc = dcloc as u32;
     }
 
-    pub fn calculate_noi(
-        &mut self,
-        node: &Node,
-        tree: &Tree,
-        source_code: &str,
-        visitor: &TreeVisitor,
-    ) {
-        self.noi = visitor.count_imports(*node, tree, source_code) as u32;
+    /// Calculate the number of imports in the node
+    pub fn calculate_noi(&mut self, import_nodes: &Vec<Node>) {
+        self.noi = import_nodes.len() as u32;
     }
 
-    pub fn calculate_noc(
-        &mut self,
-        node: &Node,
-        tree: &Tree,
-        source_code: &str,
-        visitor: &TreeVisitor,
-    ) {
-        self.noc = 0;
-        let class_captures = visitor.get_class_nodes(node, tree, source_code);
-        self.noc = class_captures.len() as u32;
+    /// Calculate the number of classes in the node
+    pub fn calculate_noc(&mut self, class_nodes: &Vec<Node>) {
+        self.noc = class_nodes.len() as u32;
     }
 
-    pub fn calculate_nom(
-        &mut self,
-        node: &Node,
-        tree: &Tree,
-        source_code: &str,
-        visitor: &TreeVisitor,
-    ) {
-        self.nom = 0;
-        let method_captures = visitor.get_method_nodes(node, tree, source_code);
-        self.nom = method_captures.len() as u32;
+    /// Calculate the number of methods in the node
+    pub fn calculate_nom(&mut self, method_nodes: &Vec<Node>) {
+        self.nom = method_nodes.len() as u32;
     }
 
-    fn check_broken(&mut self, node: &Node, visitor: &TreeVisitor) {
-        self.is_broken = visitor.check_if_broken(*node);
-    }
-
-    fn count_decision_points(&self, node: Node, decision_points: &Vec<&str>) -> usize {
+    fn count_decision_points(
+        &self,
+        node: Node,
+        decision_points: &Vec<&str>,
+        skip_nodes: &Vec<&str>,
+    ) -> usize {
         let mut count = 0;
-
-        let skip_nodes = match self.language.as_str() {
-            "Java" => vec![
-                "class_declaration",
-                "method_declaration",
-                "constructor_declaration",
-            ],
-            "Python" => vec!["class_definition", "function_definition"],
-            _ => {
-                eprintln!("Unsupported language: {}", self.language);
-                return 0; // Return 0 for unsupported languages
-            }
-        };
 
         // Check if the child node is a decision point
         if decision_points.contains(&node.kind()) {
@@ -223,7 +192,7 @@ impl CodeMetric {
         if !skip_nodes.contains(&node.kind()) {
             for i in 0..node.child_count() {
                 if let Some(child) = node.child(i) {
-                    count += self.count_decision_points(child, decision_points);
+                    count += self.count_decision_points(child, decision_points, skip_nodes);
                 }
             }
         }
@@ -231,23 +200,12 @@ impl CodeMetric {
         count
     }
 
+    /// Calculate the cyclomatic complexity of the node
     pub fn calculate_cc(&mut self, node: &Node) {
-        // Get the decision points for the current language
-        let empty_vec = vec![];
-        let node_groups = get_node_groups();
-        let decision_points = node_groups
-            .iter()
-            .find(|(lang, _)| *lang == self.language)
-            .map(|(_, groups)| {
-                groups
-                    .iter()
-                    .find(|(group_name, _)| *group_name == "decision_point_nodes")
-                    .map(|(_, points)| points)
-                    .unwrap_or(&empty_vec)
-            })
-            .unwrap_or(&empty_vec);
+        let decision_points = get_node_group(&self.language, "decision_point_nodes");
+        let skip_nodes = get_node_group(&self.language, "decision_point_skip_nodes");
 
-        self.cc = self.count_decision_points(*node, decision_points) as u32 + 1;
+        self.cc = self.count_decision_points(*node, &decision_points, &skip_nodes) as u32 + 1;
     }
 }
 
@@ -270,7 +228,7 @@ impl CodeMetrics {
         file_path: &String,
         tree: &Tree,
     ) {
-        let visitor = TreeVisitor::new(parsers, &language);
+        let visitor = TreeVisitor::new(parsers, &language, source_code);
 
         let root_node = tree.root_node();
         let root_type = root_node.kind();
@@ -280,17 +238,22 @@ impl CodeMetrics {
             get_file_name(&file_path),
             root_type.to_string(),
         );
-        metric.generate_node_metrics(&root_node, &visitor);
-        metric.calculate_eloc(&root_node, source_code, &visitor);
-        metric.calculate_cloc_dcloc(&root_node, tree, source_code, &visitor);
-        metric.calculate_noi(&root_node, tree, source_code, &visitor);
+        metric.generate_simple_node_metrics(&visitor, &root_node);
+        metric.calculate_eloc(&visitor, &root_node);
+        let (comment_nodes, import_nodes, class_nodes, method_nodes) =
+            visitor.perform_base_query(&root_node, tree);
+
+        metric.calculate_cloc_dcloc(&visitor, &comment_nodes);
+        metric.calculate_noi(&import_nodes);
         metric.calculate_cc(&root_node);
 
-        let class_nodes = visitor.get_class_nodes(&root_node, tree, source_code);
-        metric.noc = class_nodes.len() as u32;
+        // let class_nodes = visitor.get_class_nodes(&root_node, tree, source_code);
+        // metric.noc = class_nodes.len() as u32;
+        metric.calculate_noc(&class_nodes);
 
-        let method_nodes = visitor.get_method_nodes(&root_node, tree, source_code);
-        metric.nom = method_nodes.len() as u32;
+        // let method_nodes = visitor.get_method_nodes(&root_node, tree, source_code);
+        // metric.nom = method_nodes.len() as u32;
+        metric.calculate_nom(&method_nodes);
 
         self.add_metric(metric);
 
@@ -321,23 +284,26 @@ impl CodeMetrics {
         language: String,
         file_path: String,
         tree: &Tree,
-        class_captures: &Vec<(Node, String)>,
+        class_nodes: &Vec<Node>,
         visitor: &TreeVisitor,
     ) {
-        for (node, tag) in class_captures {
+        for node in class_nodes {
             let node_type = node.kind();
 
-            let class_name = visitor.get_class_name(*node, tree, source_code);
+            let class_name = visitor.get_class_name(node);
+
+            let (comment_nodes, import_nodes, class_nodes, method_nodes) =
+                visitor.perform_base_query(&node, tree);
 
             let mut metric =
                 CodeMetric::new(&language, &file_path, class_name, node_type.to_string());
-            metric.generate_node_metrics(&node, visitor);
-            metric.calculate_eloc(node, source_code, visitor);
-            metric.calculate_cloc_dcloc(node, tree, source_code, visitor);
-            metric.calculate_noi(node, tree, source_code, visitor);
-            metric.calculate_noc(node, tree, source_code, visitor);
+            metric.generate_simple_node_metrics(&visitor, &node);
+            metric.calculate_eloc(visitor, node);
+            metric.calculate_cloc_dcloc(&visitor, &comment_nodes);
+            metric.calculate_noi(&import_nodes);
+            metric.calculate_noc(&class_nodes);
             metric.noc -= 1; // Exclude the class itself
-            metric.calculate_nom(node, tree, source_code, visitor);
+            metric.calculate_nom(&method_nodes);
             metric.calculate_cc(node);
 
             self.add_metric(metric);
@@ -351,26 +317,31 @@ impl CodeMetrics {
         language: String,
         file_path: String,
         tree: &Tree,
-        method_captures: &Vec<(Node, String)>,
+        method_nodes: &Vec<Node>,
         visitor: &TreeVisitor,
     ) {
-        for (node, tag) in method_captures {
+        for node in method_nodes {
             let node_type = node.kind();
 
-            let method_name = visitor.get_method_name(*node, tree, source_code);
-            let parameters_count = visitor.count_parameters(*node, tree, source_code);
+            let method_name = visitor.get_method_name(node);
+
+            let (comment_nodes, import_nodes, class_nodes, method_nodes) =
+                visitor.perform_base_query(&node, tree);
 
             let mut metric =
                 CodeMetric::new(&language, &file_path, method_name, node_type.to_string());
-            metric.generate_node_metrics(&node, visitor);
-            metric.load_pc(parameters_count as u32);
-            metric.calculate_eloc(node, source_code, visitor);
-            metric.calculate_cloc_dcloc(node, tree, source_code, visitor);
-            metric.calculate_noi(node, tree, source_code, visitor);
-            metric.calculate_noc(node, tree, source_code, visitor);
-            metric.calculate_nom(node, tree, source_code, visitor);
+            metric.generate_simple_node_metrics(&visitor, &node);
+
+            metric.calculate_eloc(visitor, node);
+            metric.calculate_cloc_dcloc(&visitor, &comment_nodes);
+            metric.calculate_noi(&import_nodes);
+            metric.calculate_noc(&class_nodes);
+            metric.calculate_nom(&method_nodes);
             metric.nom -= 1; // Exclude the method itself
             metric.calculate_cc(node);
+
+            let parameters_count = visitor.count_parameters(node);
+            metric.load_pc(parameters_count as u32);
 
             self.add_metric(metric);
         }

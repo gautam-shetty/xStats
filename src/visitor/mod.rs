@@ -1,165 +1,109 @@
 use crate::parser::{Node, TSParsers, Tree};
 
+pub fn get_query_group<'a>(language: &'a str, query_name: &'a str) -> &'a str {
+    const JAVA_BASE_QUERY: &str = concat!(
+        "[(line_comment) @comment (block_comment) @comment]",
+        "(import_declaration) @import",
+        "(class_declaration) @class_definition",
+        "[(constructor_declaration) @method_definition (method_declaration) @method_definition]",
+    );
+
+    const PYTHON_BASE_QUERY: &str = concat!(
+        "[(comment) @comment (expression_statement (string) @comment)]",
+        "[(import_statement) @import (import_from_statement) @import]",
+        "(class_definition) @class_definition",
+        "(function_definition ) @method_definition",
+    );
+
+    match (language, query_name) {
+        ("Java", "base_query") => JAVA_BASE_QUERY,
+        ("Python", "base_query") => PYTHON_BASE_QUERY,
+        _ => {
+            eprintln!(
+                "Unsupported language or group name: {} - {}",
+                language, query_name
+            );
+            ""
+        }
+    }
+}
+
 pub struct TreeVisitor<'a> {
     pub parsers: &'a TSParsers,
     pub language: String,
+    pub source_code: &'a str,
 }
 
 impl<'a> TreeVisitor<'a> {
-    pub fn new(parsers: &'a TSParsers, language: &String) -> Self {
+    pub fn new(parsers: &'a TSParsers, language: &String, source_code: &'a str) -> Self {
         Self {
             parsers,
             language: language.to_string(),
+            source_code,
         }
     }
 
-    pub fn get_class_nodes(
+    pub fn perform_base_query(
         &self,
         node: &'a Node,
         tree: &'a Tree,
-        source_code: &'a str,
-    ) -> Vec<(Node<'a>, String)> {
-        let query_string = match self.language.as_str() {
-            "Java" => "(class_declaration ) @definition",
-            "Python" => "(class_definition ) @definition",
-            _ => {
-                eprintln!("Unsupported language: {}", self.language);
-                return Vec::new(); // Return an empty vector for unsupported languages
-            }
-        };
+    ) -> (Vec<Node<'a>>, Vec<Node<'a>>, Vec<Node<'a>>, Vec<Node<'a>>) {
+        let query_string = get_query_group(&self.language, "base_query");
+        let mut comment_n = Vec::new();
+        let mut import_n = Vec::new();
+        let mut class_n = Vec::new();
+        let mut method_n = Vec::new();
 
         let parser = match self.parsers.get_parser(&self.language) {
             Some(p) => p,
             None => {
                 eprintln!("Parser not found for language: {}", self.language);
-                return Vec::new();
+                return (comment_n, import_n, class_n, method_n);
             }
         };
 
-        // let root_node = tree.root_node();
-        parser.query_tree(&node, tree, source_code, query_string)
+        let query_result = parser.query_tree(&node, tree, self.source_code, query_string);
+
+        for (matched_node, capture_name) in query_result {
+            match capture_name.as_str() {
+                "comment" => comment_n.push(matched_node),
+                "import" => import_n.push(matched_node),
+                "class_definition" => class_n.push(matched_node),
+                "method_definition" => method_n.push(matched_node),
+                _ => {}
+            }
+        }
+
+        (comment_n, import_n, class_n, method_n)
     }
 
-    pub fn get_class_name(&self, class_node: Node, tree: &'a Tree, source_code: &'a str) -> String {
-        let query_string = match self.language.as_str() {
-            "Java" => "(class_declaration name: (_) @name)",
-            "Python" => "(class_definition name: (_) @name)",
-            _ => {
-                eprintln!("Unsupported language: {}", self.language);
-                return "".to_string(); // Return an empty string for unsupported languages
-            }
-        };
+    pub fn get_class_name(&self, class_node: &Node) -> String {
+        let class_name_node = class_node.child_by_field_name("name").unwrap();
+        let class_name_text = class_name_node
+            .utf8_text(self.source_code.as_bytes())
+            .unwrap();
+        class_name_text.to_string()
+    }
 
-        let parser = match self.parsers.get_parser(&self.language) {
-            Some(p) => p,
-            None => {
-                eprintln!("Parser not found for language: {}", self.language);
-                return "".to_string();
-            }
-        };
-
-        let query_result = parser.query_tree(&class_node, &tree, source_code, query_string);
-        let method_name_node = query_result.first();
-        let method_name_text = match method_name_node {
-            Some((name_node, _)) => name_node.utf8_text(source_code.as_bytes()).unwrap(),
-            None => "unknown",
-        };
+    pub fn get_method_name(&self, method_node: &Node) -> String {
+        let method_name_node = method_node.child_by_field_name("name").unwrap();
+        let method_name_text = method_name_node
+            .utf8_text(self.source_code.as_bytes())
+            .unwrap();
         method_name_text.to_string()
     }
 
-    pub fn get_method_nodes(
-        &self,
-        node: &'a Node,
-        tree: &'a Tree,
-        source_code: &'a str,
-    ) -> Vec<(Node<'a>, String)> {
-        let query_string = match self.language.as_str() {
-            "Java" => "[(constructor_declaration ) @definition (method_declaration ) @definition]",
-            "Python" => "(function_definition ) @definition",
-            _ => {
-                eprintln!("Unsupported language: {}", self.language);
-                return Vec::new(); // Return an empty vector for unsupported languages
-            }
-        };
-
-        let parser = match self.parsers.get_parser(&self.language) {
-            Some(p) => p,
-            None => {
-                eprintln!("Parser not found for language: {}", self.language);
-                return Vec::new();
-            }
-        };
-
-        parser.query_tree(&node, tree, source_code, query_string)
+    pub fn count_parameters(&self, method_node: &Node) -> usize {
+        let parameters_node = method_node.child_by_field_name("parameters").unwrap();
+        let parameters_count = parameters_node.child_count();
+        parameters_count
     }
 
-    pub fn get_method_name(
-        &self,
-        method_node: Node,
-        tree: &'a Tree,
-        source_code: &'a str,
-    ) -> String {
-        let query_string = match self.language.as_str() {
-            "Java" => {
-                "[(constructor_declaration name: (_) @name)(method_declaration name: (_) @name)]"
-            }
-            "Python" => "(function_definition name: (_) @name)",
-            _ => {
-                eprintln!("Unsupported language: {}", self.language);
-                return "".to_string(); // Return an empty string for unsupported languages
-            }
-        };
-
-        let parser = match self.parsers.get_parser(&self.language) {
-            Some(p) => p,
-            None => {
-                eprintln!("Parser not found for language: {}", self.language);
-                return "".to_string();
-            }
-        };
-
-        let query_result = parser.query_tree(&method_node, &tree, &source_code, query_string);
-        let method_name_node = query_result.first();
-        let method_name_text = match method_name_node {
-            Some((name_node, _)) => name_node.utf8_text(source_code.as_bytes()).unwrap(),
-            None => "unknown",
-        };
-        method_name_text.to_string()
-    }
-
-    pub fn count_parameters(
-        &self,
-        method_node: Node,
-        tree: &'a Tree,
-        source_code: &'a str,
-    ) -> usize {
-        let query_string = match self.language.as_str() {
-            "Java" => "(_ parameters: (_(_) @param ))",
-            "Python" => "(_ parameters: (_(_) @param ))",
-            _ => {
-                eprintln!("Unsupported language: {}", self.language);
-                return 0; // Return 0 for unsupported languages
-            }
-        };
-
-        let parser = match self.parsers.get_parser(&self.language) {
-            Some(p) => p,
-            None => {
-                eprintln!("Parser not found for language: {}", self.language);
-                return 0;
-            }
-        };
-
-        let query_result = parser.query_tree(&method_node, tree, source_code, query_string);
-        let param_count = query_result.len();
-        param_count
-    }
-
-    pub fn count_empty_lines(&self, node: Node, source_code: &str) -> usize {
+    pub fn count_empty_lines(&self, node: Node) -> usize {
         let mut empty_lines_count = 0;
 
         // Extract the text of the node
-        if let Some(node_text) = source_code.get(node.start_byte()..node.end_byte()) {
+        if let Some(node_text) = self.source_code.get(node.start_byte()..node.end_byte()) {
             // Iterate through lines in the node's text
             for line in node_text.lines() {
                 // Check if the line is empty or contains only whitespace
@@ -172,34 +116,15 @@ impl<'a> TreeVisitor<'a> {
         empty_lines_count
     }
 
-    pub fn count_comments(&self, node: Node, tree: &'a Tree, source_code: &str) -> (usize, usize) {
-        let query_string = match self.language.as_str() {
-            "Java" => "[(line_comment) @comment (block_comment) @comment]",
-            "Python" => "[(comment) @comment (expression_statement (string) @comment)]",
-            _ => {
-                eprintln!("Unsupported language: {}", self.language);
-                return (0, 0); // Return 0 for unsupported languages
-            }
-        };
-
-        let parser = match self.parsers.get_parser(&self.language) {
-            Some(p) => p,
-            None => {
-                eprintln!("Parser not found for language: {}", self.language);
-                return (0, 0);
-            }
-        };
-
-        let query_result = parser.query_tree(&node, tree, source_code, query_string);
-
+    pub fn count_comments(&self, comment_nodes: &Vec<Node>) -> (usize, usize) {
         let mut total_comments_count = 0;
         let mut doc_comments_count = 0;
 
-        for (node, _) in query_result {
+        for node in comment_nodes {
             total_comments_count += 1;
 
             // Extract the text of the comment
-            if let Ok(comment_text) = node.utf8_text(source_code.as_bytes()) {
+            if let Ok(comment_text) = node.utf8_text(self.source_code.as_bytes()) {
                 if self.language == "Java" {
                     // Check for Java doc comments (start with /**)
                     if comment_text.starts_with("/**") {
@@ -215,28 +140,6 @@ impl<'a> TreeVisitor<'a> {
         }
 
         (total_comments_count, doc_comments_count)
-    }
-
-    pub fn count_imports(&self, node: Node, tree: &'a Tree, source_code: &str) -> usize {
-        let query_string = match self.language.as_str() {
-            "Java" => "(import_declaration) @import",
-            "Python" => "[(import_statement) @import (import_from_statement) @import]",
-            _ => {
-                eprintln!("Unsupported language: {}", self.language);
-                return 0; // Return 0 for unsupported languages
-            }
-        };
-
-        let parser = match self.parsers.get_parser(&self.language) {
-            Some(p) => p,
-            None => {
-                eprintln!("Parser not found for language: {}", self.language);
-                return 0;
-            }
-        };
-
-        let query_result = parser.query_tree(&node, tree, source_code, query_string);
-        query_result.len() // Return the count of captured import nodes
     }
 
     pub fn check_if_broken(&self, node: Node) -> bool {

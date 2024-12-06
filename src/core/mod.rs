@@ -38,17 +38,20 @@ impl XStats {
     }
 
     pub fn print_commits(&self) {
-        if let Some(git_manager) = &self.git_manager {
-            match git_manager.get_all_commits() {
-                Ok(repo_commits) => {
-                    for commit in repo_commits {
-                        let commit_id = commit.id().to_string();
-                        println!("Commit ID: {}", commit_id);
+        let git_manager = self.get_git_manager();
+        match git_manager.get_all_commits() {
+            Ok(repo_commits) => {
+                for (commit, modified_files) in repo_commits {
+                    let commit_id = commit.id().to_string();
+                    println!("Commit ID: {}", commit_id);
+                    for file in modified_files {
+                        println!("\tFile: {}", file);
                     }
+                    println!();
                 }
-                Err(e) => {
-                    println!("Failed to get commits: {}", e);
-                }
+            }
+            Err(e) => {
+                println!("Failed to get commits: {}", e);
             }
         }
     }
