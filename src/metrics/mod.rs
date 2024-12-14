@@ -98,6 +98,10 @@ pub struct CodeMetrics {
     pub metrics: Vec<CodeMetric>,
 }
 
+pub struct CodeMetricsMap {
+    pub metrics: std::collections::HashMap<String, CodeMetrics>,
+}
+
 impl CodeMetric {
     pub fn new(
         language: &String,
@@ -345,5 +349,33 @@ impl CodeMetrics {
 
             self.add_metric(metric);
         }
+    }
+}
+
+impl CodeMetricsMap {
+    pub fn new() -> CodeMetricsMap {
+        CodeMetricsMap {
+            metrics: std::collections::HashMap::new(),
+        }
+    }
+
+    pub fn iter(&self) -> std::collections::hash_map::Iter<String, CodeMetrics> {
+        self.metrics.iter()
+    }
+
+    pub fn add_metrics(&mut self, commit_id: String, metrics: CodeMetrics) {
+        self.metrics.insert(commit_id, metrics);
+    }
+
+    pub fn get_metrics(&self, commit_id: &String) -> Option<&CodeMetrics> {
+        self.metrics.get(commit_id)
+    }
+
+    pub fn add_default_metrics(&mut self, metrics: CodeMetrics) {
+        self.metrics.insert("default".to_string(), metrics);
+    }
+
+    pub fn get_default_metrics(&self) -> Option<&CodeMetrics> {
+        self.metrics.values().next()
     }
 }

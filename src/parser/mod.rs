@@ -1,6 +1,7 @@
 use crate::utils;
+use std::collections::HashMap;
 pub use tree_sitter::{
-    Language, Node, Parser, Query, QueryCaptures, QueryCursor, QueryMatches, Tree,
+    InputEdit, Language, Node, Parser, Point, Query, QueryCaptures, QueryCursor, QueryMatches, Tree,
 };
 
 pub fn get_grammar_info() -> Vec<(&'static str, Language, Vec<&'static str>)> {
@@ -84,7 +85,12 @@ impl TSParsers {
             .find(|parser| parser.name == language)
     }
 
-    pub fn generate_tree(&mut self, file_path: &str) -> Option<(&'static str, Tree, String)> {
+    pub fn generate_tree(
+        &mut self,
+        ts_history: &mut TSTreeHistory,
+        file_path: &str,
+        content: Option<String>,
+    ) -> Option<(&'static str, Tree, String)> {
         let file_extension = utils::get_file_extension(file_path);
 
         for ts_parser in &mut self.ts_parsers {
@@ -92,12 +98,91 @@ impl TSParsers {
                 .supported_extensions
                 .contains(&file_extension.as_str())
             {
-                let source_code = utils::read_file(file_path);
-                if let Some(tree) = ts_parser.parser.parse(&source_code, None) {
+                let source_code = match content {
+                    Some(ref content) => content.clone(),
+                    None => utils::read_file(file_path),
+                };
+
+                if let Some(tree) = Self::parse_with_ts(&mut ts_parser.parser, &source_code, None) {
+                    return Some((ts_parser.name, tree, source_code.to_string()));
+                }
+            }
+        }
+        None
+    }
+
+    pub fn generate_tree_from_blob(
+        &mut self,
+        ts_history: &mut TSTreeHistory,
+        file_path: &str,
+        source_code: &str,
+    ) -> Option<(&'static str, Tree, String)> {
+        let file_extension = utils::get_file_extension(file_path);
+
+        for ts_parser in &mut self.ts_parsers {
+            if ts_parser
+                .supported_extensions
+                .contains(&file_extension.as_str())
+            {
+                let source_code = source_code.to_string();
+                let old_tree = match ts_history.get_tree(file_path) {
+                    Some(tree) => Some(tree),
+                    None => None,
+                };
+
+                if let Some(tree) =
+                    Self::parse_with_ts(&mut ts_parser.parser, &source_code, old_tree.as_deref())
+                {
                     return Some((ts_parser.name, tree, source_code));
                 }
             }
         }
         None
+    }
+
+    fn parse_with_ts(
+        parser: &mut tree_sitter::Parser,
+        source_code: &str,
+        old_tree: Option<&Tree>,
+    ) -> Option<Tree> {
+        parser.parse(source_code, old_tree)
+    }
+}
+
+/// A structure that holds the history of trees.
+///
+/// # Fields
+///
+/// * `trees` - A `HashMap` where the key is a `String` representing the path,
+///   and the value is a `Tree` which is of the Tree-sitter tree type.
+pub struct TSTreeHistory {
+    trees: HashMap<String, Tree>,
+}
+
+impl TSTreeHistory {
+    pub fn new() -> Self {
+        Self {
+            trees: HashMap::new(),
+        }
+    }
+
+    pub fn get_trees(&self) -> &HashMap<String, Tree> {
+        &self.trees
+    }
+
+    pub fn num_trees(&self) -> usize {
+        self.trees.len()
+    }
+
+    pub fn get_tree(&mut self, file_path: &str) -> Option<&mut Tree> {
+        self.trees.get_mut(file_path)
+    }
+
+    pub fn delete_tree(&mut self, file_path: &str) {
+        self.trees.remove(file_path);
+    }
+
+    pub fn insert_tree(&mut self, file_path: &str, tree: Tree) {
+        self.trees.insert(file_path.to_string(), tree);
     }
 }
