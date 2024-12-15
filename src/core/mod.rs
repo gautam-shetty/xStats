@@ -11,7 +11,7 @@ pub struct XStats {
     output_path: String,
     parsers: TSParsers,
     trees_bin: TSTreesBin,
-    metrics_map: CodeMetricsMap,
+    pub metrics_map: CodeMetricsMap,
 }
 
 impl XStats {
@@ -239,7 +239,7 @@ impl XStats {
         }
     }
 
-    pub fn save_metrics_multi_commit(&self, format: &str) {
+    pub fn save_metrics_map(&self, format: &str) {
         let metrics_dir = format!("{}/metrics", self.output_path);
         std::fs::create_dir_all(&metrics_dir).expect("Failed to create metrics directory");
 
@@ -252,13 +252,21 @@ impl XStats {
         }
     }
 
+    pub fn save_metrics(&self, format: &str) {
+        match format {
+            "csv" => self.save_data_as_csv(None),
+            "json" => self.save_data_as_json(None),
+            _ => println!("Unsupported format: {}", format),
+        }
+    }
+
     pub fn save_data_as_csv(&self, metric_key: Option<&str>) {
         let output_file = if let Some(key) = metric_key {
             format!("{}/metrics/{}.csv", self.output_path, key)
         } else {
             format!("{}/metrics.csv", self.output_path)
         };
-        let data = self.get_metrics_data(metric_key);
+        let data = self.metrics_map.get_table(metric_key);
         if save_to_csv(&output_file, data).is_ok() {
             println!("Code metrics saved at {}", output_file);
         } else {
@@ -272,68 +280,11 @@ impl XStats {
         } else {
             format!("{}/metrics.json", self.output_path)
         };
-        let data: Vec<Vec<String>> = self.get_metrics_data(metric_key);
+        let data: Vec<Vec<String>> = self.metrics_map.get_table(metric_key);
         if save_to_json(&output_file, data).is_ok() {
             println!("Code metrics saved at {}", output_file);
         } else {
             println!("Failed to save metrics to JSON");
         }
-    }
-
-    pub fn get_metrics_data(&self, name: Option<&str>) -> Vec<Vec<String>> {
-        let mut data = Vec::new();
-        data.push(vec![
-            "language".to_string(),
-            "file_path".to_string(),
-            "start_row".to_string(),
-            "start_col".to_string(),
-            "end_row".to_string(),
-            "end_col".to_string(),
-            "node_name".to_string(),
-            "node_type".to_string(),
-            "is_broken".to_string(),
-            "aloc".to_string(),
-            "eloc".to_string(),
-            "cloc".to_string(),
-            "dcloc".to_string(),
-            "noi".to_string(),
-            "noc".to_string(),
-            "nom".to_string(),
-            "cc".to_string(),
-            "pc".to_string(),
-        ]); // Add header row
-
-        let metrics = if let Some(name) = name {
-            self.metrics_map.get_metrics(&name.to_string())
-        } else {
-            self.metrics_map.get_default_metrics()
-        };
-
-        if let Some(metrics) = metrics {
-            for metric in &metrics.metrics {
-                data.push(vec![
-                    metric.language.clone(),
-                    metric.file_path.clone(),
-                    metric.start_row.to_string(),
-                    metric.start_col.to_string(),
-                    metric.end_row.to_string(),
-                    metric.end_col.to_string(),
-                    metric.node_name.clone(),
-                    metric.node_type.clone(),
-                    metric.is_broken.to_string(),
-                    metric.aloc.to_string(),
-                    metric.eloc.to_string(),
-                    metric.cloc.to_string(),
-                    metric.dcloc.to_string(),
-                    metric.noi.to_string(),
-                    metric.noc.to_string(),
-                    metric.nom.to_string(),
-                    metric.cc.to_string(),
-                    metric.pc.to_string(),
-                ]);
-            }
-        }
-
-        data
     }
 }

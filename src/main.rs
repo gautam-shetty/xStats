@@ -24,13 +24,9 @@ fn main() {
 
     if options.all_commits {
         xstats.run_multi_commit();
-        xstats.save_metrics_multi_commit(options.format.as_str());
+        xstats.save_metrics_map(options.format.as_str());
     } else {
         xstats.run_default();
-        match options.format.as_str() {
-            "json" => xstats.save_data_as_json(None),
-            "csv" => xstats.save_data_as_csv(None),
-            _ => eprintln!("Unsupported format: {}", options.format),
-        }
+        xstats.save_metrics(options.format.as_str());
     }
 }

@@ -14,7 +14,7 @@ mod tests {
 
         let mut xstats = core::XStats::new(target_dir, output_dir);
         xstats.run_default();
-        let metrics: Vec<Vec<String>> = xstats.get_metrics_data(None);
+        let metrics: Vec<Vec<String>> = xstats.metrics_map.get_table(None);
         let metrics_ref: Vec<Vec<&str>> = metrics
             .iter()
             .map(|v| v.iter().map(|s| s.as_str()).collect())
