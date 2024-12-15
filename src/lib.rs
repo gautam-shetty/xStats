@@ -4,6 +4,6 @@
 
 pub mod core;
 pub mod metrics;
-pub mod parser;
+pub mod ts;
 pub mod utils;
 pub mod visitor;

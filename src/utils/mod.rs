@@ -1,11 +1,13 @@
 use csv::Writer;
-use indicatif::{ProgressBar, ProgressStyle};
 use serde_json::to_writer;
 use std::error::Error;
 use std::fs;
 use std::fs::read_dir;
 use std::fs::File;
 use std::path::Path;
+
+pub mod progress_bar;
+pub mod version_control;
 
 pub fn read_file(file_path: &str) -> String {
     fs::read_to_string(file_path).expect(&format!("Failed to read the file {}", file_path))
@@ -100,24 +102,4 @@ pub fn save_to_json(file_path: &str, data: Vec<Vec<String>>) -> Result<(), Box<d
     let file = File::create(file_path)?;
     to_writer(file, &json_data)?;
     Ok(())
-}
-
-pub fn create_progress_bar(length: u64) -> ProgressBar {
-    let pb = ProgressBar::new(length);
-    pb.set_style(
-        ProgressStyle::default_bar()
-            .template("[{elapsed}] {bar:100} [{pos}/{len}]\n{spinner:.green} {msg}")
-            .expect("Failed to set progress bar style"),
-    );
-    pb
-}
-
-pub fn create_multi_commit_progress_bar() -> ProgressBar {
-    let pb = ProgressBar::new(0);
-    pb.set_style(
-        ProgressStyle::default_bar()
-            .template("[{elapsed}] {spinner:.blue} {pos} | {msg}")
-            .expect("Failed to set progress bar style"),
-    );
-    pb
 }

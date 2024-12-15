@@ -1,4 +1,4 @@
-use crate::parser::{Node, TSParsers, Tree};
+use crate::ts::{Node, TSParsers, Tree};
 
 pub fn get_query_group<'a>(language: &'a str, query_name: &'a str) -> &'a str {
     const JAVA_BASE_QUERY: &str = concat!(

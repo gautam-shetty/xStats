@@ -1,4 +1,4 @@
-use crate::parser::{Node, TSParsers, Tree};
+use crate::ts::{Node, TSParsers, Tree};
 use crate::utils::get_file_name;
 use crate::visitor::TreeVisitor;
 

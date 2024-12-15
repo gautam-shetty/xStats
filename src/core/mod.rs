@@ -1,15 +1,16 @@
 use crate::metrics::{CodeMetrics, CodeMetricsMap};
-use crate::parser::{TSParsers, TSTreeHistory};
-use crate::utils::{
-    create_multi_commit_progress_bar, create_progress_bar, save_to_csv, save_to_json, traverse_path,
+use crate::ts::{TSParsers, TSTreesBin};
+use crate::utils::progress_bar::CustomProgressBar;
+use crate::utils::version_control::{
+    generate_revwalk, open_repo, Delta, DiffOptions, Repository, Tree,
 };
-use git2::{Delta, DiffOptions, Repository, Sort, Tree};
+use crate::utils::{get_file_extension, save_to_csv, save_to_json, traverse_path};
 
 pub struct XStats {
     target_path: String,
     output_path: String,
     parsers: TSParsers,
-    history: TSTreeHistory,
+    trees_bin: TSTreesBin,
     metrics_map: CodeMetricsMap,
 }
 
@@ -19,7 +20,7 @@ impl XStats {
             target_path,
             output_path,
             parsers: TSParsers::new(),
-            history: TSTreeHistory::new(),
+            trees_bin: TSTreesBin::new(),
             metrics_map: CodeMetricsMap::new(),
         }
     }
@@ -34,20 +35,21 @@ impl XStats {
                     );
                 } else {
                     let file_count = files.len();
-                    let prog_bar = create_progress_bar(file_count as u64);
+                    let main_pb = CustomProgressBar::new();
+                    let pb = main_pb.generate_files_bar(file_count as u64);
 
                     let mut metrics = CodeMetrics::new();
 
                     // Analyze each file
                     for file in &files {
-                        prog_bar.set_message(format!("Processing file: {}", file));
+                        pb.set_message(format!("{}", file));
                         self.process_file(&mut metrics, file, None);
-                        prog_bar.inc(1);
+                        pb.inc(1);
                     }
 
                     self.metrics_map.add_default_metrics(metrics);
 
-                    prog_bar.finish_and_clear();
+                    pb.finish_and_clear();
                 }
             }
             Err(e) => {
@@ -58,35 +60,20 @@ impl XStats {
 
     pub fn run_multi_commit(&mut self) {
         // Open the Git repository at target_path
-        let repo = match Repository::open(&self.target_path) {
-            Ok(repo) => repo,
-            Err(e) => {
-                println!("Failed to open repository: {}", e);
-                return;
-            }
-        };
+        let repo = open_repo(&self.target_path);
 
         // Get the HEAD commit
-        let mut revwalk = match repo.revwalk() {
-            Ok(walk) => walk,
-            Err(e) => {
-                println!("Failed to create revwalk: {}", e);
-                return;
-            }
-        };
+        let revwalk = generate_revwalk(&repo);
+        let total_commits = generate_revwalk(&repo).count();
 
-        revwalk.push_head().expect("Failed to push HEAD to revwalk");
-        revwalk
-            .set_sorting(Sort::REVERSE)
-            .expect("Failed to set sorting");
-
-        let prog_bar = create_multi_commit_progress_bar();
+        let main_pb = CustomProgressBar::new();
+        let pb = main_pb.generate_commits_bar(total_commits as u64);
 
         // Iterate through commits
         for oid_result in revwalk {
             if let Ok(oid) = oid_result {
                 if let Ok(commit) = repo.find_commit(oid) {
-                    prog_bar.set_message(format!("Commit: {}", commit.id()));
+                    pb.set_message(format!("{}", commit.id()));
                     // Get the tree for the commit
                     if let Ok(tree) = commit.tree() {
                         let parent = if commit.parent_count() > 0 {
@@ -101,7 +88,8 @@ impl XStats {
                             None
                         };
                         let mut code_metrics = CodeMetrics::new();
-                        if let Err(e) = self.process_tree(&repo, &tree, &parent, &mut code_metrics)
+                        if let Err(e) =
+                            self.process_tree(&repo, &tree, &parent, &mut code_metrics, &main_pb)
                         {
                             println!("Failed to process tree: {}", e);
                         }
@@ -110,12 +98,11 @@ impl XStats {
                             .add_metrics(commit.id().to_string(), code_metrics);
                     }
 
-                    prog_bar.inc(1);
+                    pb.inc(1);
                 }
             }
         }
-
-        prog_bar.finish_and_clear();
+        pb.finish_and_clear();
     }
 
     // Process each file in a tree
@@ -125,7 +112,10 @@ impl XStats {
         tree: &Tree,
         parent: &Option<Tree>,
         code_metrics: &mut CodeMetrics,
+        main_pb: &CustomProgressBar,
     ) -> Result<(), git2::Error> {
+        let supported_extensions = self.parsers.get_all_supported_extensions();
+
         let mut diff_opts = DiffOptions::new();
         let diff = repo
             .diff_tree_to_tree(parent.as_ref(), Some(tree), Some(&mut diff_opts))
@@ -134,13 +124,22 @@ impl XStats {
         let stats = diff.stats().expect("Failed to get diff stats");
         let files_changed = stats.files_changed();
 
+        let pb = main_pb.generate_files_bar(files_changed as u64);
+
         diff.foreach(
             &mut |delta, _| {
                 match delta.status() {
                     Delta::Added => {
                         if let Some(path) = delta.new_file().path() {
+                            pb.set_message(format!("[ADDED] {}", path.to_string_lossy()));
                             // Retrieve the file content for added or modified files
                             if let Ok(blob) = repo.find_blob(delta.new_file().id()) {
+                                if !supported_extensions
+                                    .contains(&get_file_extension(&path.to_string_lossy()).as_str())
+                                {
+                                    pb.inc(1);
+                                    return true;
+                                }
                                 if let Ok(content) = std::str::from_utf8(blob.content()) {
                                     // Pass the file content to `process_file`
                                     self.process_file(
@@ -164,8 +163,15 @@ impl XStats {
                     }
                     Delta::Modified => {
                         if let Some(path) = delta.new_file().path() {
+                            pb.set_message(format!("[MODIFIED] {}", path.to_string_lossy()));
                             // Retrieve the file content for added or modified files
                             if let Ok(blob) = repo.find_blob(delta.new_file().id()) {
+                                if !supported_extensions
+                                    .contains(&get_file_extension(&path.to_string_lossy()).as_str())
+                                {
+                                    pb.inc(1);
+                                    return true;
+                                }
                                 if let Ok(content) = std::str::from_utf8(blob.content()) {
                                     // Pass the file content to `process_file`
                                     self.process_file(
@@ -189,17 +195,26 @@ impl XStats {
                     }
                     Delta::Deleted => {
                         if let Some(path) = delta.old_file().path() {
-                            self.history.delete_tree(&path.to_string_lossy());
+                            if !supported_extensions
+                                .contains(&get_file_extension(&path.to_string_lossy()).as_str())
+                            {
+                                pb.inc(1);
+                                return true;
+                            }
+                            pb.set_message(format!("[DELETED] {}", path.to_string_lossy()));
+                            self.trees_bin.delete_tree(&path.to_string_lossy());
                         }
                     }
                     _ => {}
                 }
+                pb.inc(1);
                 true
             },
             None,
             None,
             None,
         )?;
+        main_pb.mp.remove(&pb);
         Ok(())
     }
 
@@ -209,7 +224,9 @@ impl XStats {
         file: &str,
         content: Option<String>,
     ) {
-        let result = self.parsers.generate_tree(&mut self.history, file, content);
+        let result = self
+            .parsers
+            .generate_tree(&mut self.trees_bin, file, content);
         if let Some((language, tree, source_code)) = result {
             code_metrics.generate_root_metrics(
                 &self.parsers,
@@ -218,7 +235,7 @@ impl XStats {
                 &file.to_string(),
                 &tree,
             );
-            self.history.insert_tree(&file, tree);
+            self.trees_bin.insert_tree(&file, tree);
         }
     }
 
@@ -318,19 +335,5 @@ impl XStats {
         }
 
         data
-    }
-
-    fn print_ts_history_info(&self) {
-        let trees = &self.history.get_trees();
-        let num_trees = self.history.num_trees();
-
-        let history_size = std::mem::size_of_val(&trees);
-        let entries_size: usize = trees
-            .iter()
-            .map(|(k, v)| std::mem::size_of_val(k) + std::mem::size_of_val(v))
-            .sum();
-        let total_size = history_size + entries_size;
-        println!("Number of trees in TSHistory: {}", num_trees);
-        println!("Size of the HashMap TSHistory: {} bytes", total_size);
     }
 }

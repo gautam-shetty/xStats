@@ -87,7 +87,7 @@ impl TSParsers {
 
     pub fn generate_tree(
         &mut self,
-        ts_history: &mut TSTreeHistory,
+        trees_bin: &mut TSTreesBin,
         file_path: &str,
         content: Option<String>,
     ) -> Option<(&'static str, Tree, String)> {
@@ -113,7 +113,7 @@ impl TSParsers {
 
     pub fn generate_tree_from_blob(
         &mut self,
-        ts_history: &mut TSTreeHistory,
+        trees_bin: &mut TSTreesBin,
         file_path: &str,
         source_code: &str,
     ) -> Option<(&'static str, Tree, String)> {
@@ -125,7 +125,7 @@ impl TSParsers {
                 .contains(&file_extension.as_str())
             {
                 let source_code = source_code.to_string();
-                let old_tree = match ts_history.get_tree(file_path) {
+                let old_tree = match trees_bin.get_tree(file_path) {
                     Some(tree) => Some(tree),
                     None => None,
                 };
@@ -147,6 +147,14 @@ impl TSParsers {
     ) -> Option<Tree> {
         parser.parse(source_code, old_tree)
     }
+
+    pub fn get_all_supported_extensions(&self) -> Vec<&'static str> {
+        self.ts_parsers
+            .iter()
+            .flat_map(|parser| parser.supported_extensions.iter())
+            .cloned()
+            .collect()
+    }
 }
 
 /// A structure that holds the history of trees.
@@ -155,11 +163,11 @@ impl TSParsers {
 ///
 /// * `trees` - A `HashMap` where the key is a `String` representing the path,
 ///   and the value is a `Tree` which is of the Tree-sitter tree type.
-pub struct TSTreeHistory {
+pub struct TSTreesBin {
     trees: HashMap<String, Tree>,
 }
 
-impl TSTreeHistory {
+impl TSTreesBin {
     pub fn new() -> Self {
         Self {
             trees: HashMap::new(),
@@ -184,5 +192,19 @@ impl TSTreeHistory {
 
     pub fn insert_tree(&mut self, file_path: &str, tree: Tree) {
         self.trees.insert(file_path.to_string(), tree);
+    }
+
+    pub fn get_stats(&self) {
+        let trees = &self.get_trees();
+        let num_trees = self.num_trees();
+
+        let history_size = std::mem::size_of_val(&trees);
+        let entries_size: usize = trees
+            .iter()
+            .map(|(k, v)| std::mem::size_of_val(k) + std::mem::size_of_val(v))
+            .sum();
+        let total_size = history_size + entries_size;
+        println!("Number of trees in TSHistory: {}", num_trees);
+        println!("Size of the HashMap TSHistory: {} bytes", total_size);
     }
 }
