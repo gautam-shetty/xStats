@@ -1,11 +1,6 @@
 # xStats
 
-Static analysis tool to calculate code metrics for Java and Python
-
-### Supported file extensions
-
-- Java: `.java`
-- Python: `.py`
+Static analysis tool designed to calculate code metrics for Java and Python projects.
 
 ## Features
 
@@ -33,3 +28,24 @@ Currently supported code metrics and their descriptions
 | _node_type_   | Type of the node                    | &check; | &check; |
 
 > **Note**: If the node is broken, the rest of the metrics might not be accurate
+
+#### Supported file extensions
+
+- Java: `.java`
+- Python: `.py`
+
+### How to build
+
+1. Ensure you have Rust installed on your machine. If not, you can install it from [here](https://www.rust-lang.org/tools/install)
+2. Clone the repository
+
+```bash
+git clone https://github.com/gautam-shetty/xStats.git
+cd xStats
+```
+
+3. Build the project
+
+```bash
+cargo build --release
+```
