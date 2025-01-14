@@ -1,68 +1,30 @@
 name: Release
 
 on:
-  push:
-    branches:
-      - main
-    tags:
-      - v*
+  release:
+    types: [created]
 
 jobs:
-  build:
-    name: Build and Release binaries
-    runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        target:
-          - x86_64-unknown-linux-gnu
-          - x86_64-pc-windows-gnu
-          - x86_64-apple-darwin
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          target: ${{ matrix.target }}
-
-      - name: Build
-        run: cargo build --release --target ${{ matrix.target }}
-
-      - name: Archive
-        uses: actions/upload-artifact@v3
-        with:
-          name: xstats-${{ matrix.target }}
-          path: target/${{ matrix.target }}/release/xstats
-
   release:
-    name: Create a new release
-    needs: build
+    name: release ${{ matrix.target }}
     runs-on: ubuntu-latest
-
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            archive: zip
+          - target: x86_64-pc-windows-gnu
+            archive: zip
+          - target: x86_64-apple-darwin
+            archive: zip
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Download artifacts
-        uses: actions/download-artifact@v3
+      - uses: actions/checkout@v4
+      - name: Compile and release
+        uses: rust-build/rust-build.action@v1.4.5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          name: xstats-${{ matrix.target }}
-          path: artifacts
-
-      - name: Create Release
-        uses: ncipollo/release-action@v1
-        with:
-          artifacts: |
-            artifacts/xstats-x86_64-unknown-linux-gnu
-            artifacts/xstats-x86_64-pc-windows-gnu
-            artifacts/xstats-x86_64-apple-darwin
-          token: ${{ secrets.GITHUB_TOKEN }}
-          tag: ${{ github.ref_name }}
-          name: Release ${{ github.ref_name }}
-          body: |
-            ## xStats CLI Tool v${{ github.ref_name }}
-            Precompiled binaries for Linux, Windows, and macOS.
+          RUSTTARGET: ${{ matrix.target }}
+          ARCHIVE_TYPES: ${{ matrix.archive }}
+          EXTRA_FILES: "README.md LICENSE"
