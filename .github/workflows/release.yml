@@ -1,0 +1,68 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - v*
+
+jobs:
+  build:
+    name: Build and Release binaries
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        target:
+          - x86_64-unknown-linux-gnu
+          - x86_64-pc-windows-gnu
+          - x86_64-apple-darwin
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: ${{ matrix.target }}
+
+      - name: Build
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Archive
+        uses: actions/upload-artifact@v3
+        with:
+          name: xstats-${{ matrix.target }}
+          path: target/${{ matrix.target }}/release/xstats
+
+  release:
+    name: Create a new release
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: xstats-${{ matrix.target }}
+          path: artifacts
+
+      - name: Create Release
+        uses: ncipollo/release-action@v1
+        with:
+          artifacts: |
+            artifacts/xstats-x86_64-unknown-linux-gnu
+            artifacts/xstats-x86_64-pc-windows-gnu
+            artifacts/xstats-x86_64-apple-darwin
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          body: |
+            ## xStats CLI Tool v${{ github.ref_name }}
+            Precompiled binaries for Linux, Windows, and macOS.
