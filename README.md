@@ -34,6 +34,25 @@ Currently supported code metrics and their descriptions
 - Java: `.java`
 - Python: `.py`
 
+## Usage
+
+You can download the latest release artifacts from the [releases page](https://github.com/gautam-shetty/xStats/releases).
+
+To analyze repositories using `xStats`, run the following command:
+
+```bash
+xStats --target <TARGET> --output <OUTPUT>
+```
+
+##### Options
+
+- `-t, --target <TARGET>`: Specify the target file or directory.
+- `-o, --output <OUTPUT>`: Specify the output file.
+- `-a, --all-commits`: Analyze all commits.
+- `--format <FORMAT>`: Specify the output format (default: json).
+- `-h, --help`: Print help information.
+- `-V, --version`: Print version information.
+
 ### How to build
 
 1. Ensure you have Rust installed on your machine. If not, you can install it from [here](https://www.rust-lang.org/tools/install)
