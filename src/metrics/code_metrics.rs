@@ -133,22 +133,49 @@ impl CodeMetricBlock {
     fn count_decision_points(
         &self,
         node: Node,
-        decision_points: &Vec<&str>,
-        skip_nodes: &Vec<&str>,
+        decision_points: &[String],
+        skip_nodes: &[String],
     ) -> usize {
         let mut count = 0;
 
-        // Check if the child node is a decision point
-        if decision_points.contains(&node.kind()) {
-            count += 1;
-        }
+        let node_kind = node.kind().to_string();
 
-        // Traverse child nodes to count decision points
-        if !skip_nodes.contains(&node.kind()) {
+        // // Check if the child node is a decision point
+        // if decision_points.contains(&node_kind) {
+        //     println!("Found decision point: {}", node_kind);
+        //     count += 1;
+        // }
+
+        // // Traverse child nodes to count decision points
+        // if !skip_nodes.contains(&node_kind) {
+        //     for i in 0..node.child_count() {
+        //         if let Some(child) = node.child(i) {
+        //             count += self.count_decision_points(child, decision_points, skip_nodes);
+        //         }
+        //     }
+        // } else {
+        //     println!("Skipping node: {}", node_kind);
+        // }
+
+        if skip_nodes.contains(&node_kind) {
+            // Don't count this node, but still traverse its children
             for i in 0..node.child_count() {
                 if let Some(child) = node.child(i) {
                     count += self.count_decision_points(child, decision_points, skip_nodes);
                 }
+            }
+            return count;
+        }
+
+        // Count this node if it's a decision point
+        if decision_points.contains(&node_kind) {
+            count += 1;
+        }
+
+        // Traverse children
+        for i in 0..node.child_count() {
+            if let Some(child) = node.child(i) {
+                count += self.count_decision_points(child, decision_points, skip_nodes);
             }
         }
 
@@ -308,7 +335,7 @@ impl CodeMetrics {
     }
 }
 
-pub fn get_node_group(language: &str, group_name: &str) -> Vec<&'static str> {
+pub fn get_node_group(language: &str, group_name: &str) -> Vec<String> {
     const JAVA_DECISION_POINTS: &[&str] = &[
         "if_statement",
         "else_clause",
@@ -345,17 +372,19 @@ pub fn get_node_group(language: &str, group_name: &str) -> Vec<&'static str> {
 
     const PYTHON_DECISION_POINTS_SKIP_NODES: &[&str] = &["class_definition", "function_definition"];
 
-    match (language, group_name) {
-        ("Java", "decision_point_nodes") => JAVA_DECISION_POINTS.to_vec(),
-        ("Python", "decision_point_nodes") => PYTHON_DECISION_POINTS.to_vec(),
-        ("Java", "decision_point_skip_nodes") => JAVA_DECISION_POINTS_SKIP_NODES.to_vec(),
-        ("Python", "decision_point_skip_nodes") => PYTHON_DECISION_POINTS_SKIP_NODES.to_vec(),
+    let vec = match (language, group_name) {
+        ("Java", "decision_point_nodes") => JAVA_DECISION_POINTS,
+        ("Python", "decision_point_nodes") => PYTHON_DECISION_POINTS,
+        ("Java", "decision_point_skip_nodes") => JAVA_DECISION_POINTS_SKIP_NODES,
+        ("Python", "decision_point_skip_nodes") => PYTHON_DECISION_POINTS_SKIP_NODES,
         _ => {
             eprintln!(
                 "Unsupported language or group name: {} - {}",
                 language, group_name
             );
-            vec![]
+            &[]
         }
-    }
+    };
+
+    vec.iter().map(|s| s.to_string()).collect()
 }
