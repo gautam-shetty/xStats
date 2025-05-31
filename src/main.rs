@@ -28,5 +28,6 @@ fn main() {
     } else {
         xstats.run_default();
         xstats.save_metrics(options.format.as_str());
+        xstats.save_tdg();
     }
 }

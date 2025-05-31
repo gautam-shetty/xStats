@@ -1,3 +1,4 @@
+use crate::graph::TypeDependencyGraph;
 use crate::metrics::{CodeMetrics, CodeMetricsMap};
 use crate::ts::{TSParsers, TSTreesBin};
 use crate::utils::progress_bar::CustomProgressBar;
@@ -12,6 +13,7 @@ pub struct XStats {
     parsers: TSParsers,
     trees_bin: TSTreesBin,
     pub metrics_map: CodeMetricsMap,
+    pub tdg: TypeDependencyGraph,
 }
 
 impl XStats {
@@ -22,6 +24,7 @@ impl XStats {
             parsers: TSParsers::new(),
             trees_bin: TSTreesBin::new(),
             metrics_map: CodeMetricsMap::new(),
+            tdg: TypeDependencyGraph::new(),
         }
     }
 
@@ -228,6 +231,7 @@ impl XStats {
             .parsers
             .generate_tree(&mut self.trees_bin, file, content);
         if let Some((language, tree, source_code)) = result {
+            // Generate metrics for the file
             code_metrics.generate_root_metrics(
                 &self.parsers,
                 &source_code,
@@ -235,6 +239,8 @@ impl XStats {
                 &file.to_string(),
                 &tree,
             );
+            // Process the tree for type dependency graph
+            self.tdg.process_tree(&file.to_string(), &tree);
             self.trees_bin.insert_tree(&file, tree);
         }
     }
@@ -285,6 +291,14 @@ impl XStats {
             println!("Code metrics saved at {}", output_file);
         } else {
             println!("Failed to save metrics to JSON");
+        }
+    }
+
+    pub fn save_tdg(&self) {
+        let tdg_path = format!("{}/tdg.dot", self.output_path);
+        match self.tdg.export_to_dot(&tdg_path) {
+            Ok(_) => println!("Type Dependency Graph saved at {}", tdg_path),
+            Err(e) => println!("Failed to save Type Dependency Graph: {}", e),
         }
     }
 }

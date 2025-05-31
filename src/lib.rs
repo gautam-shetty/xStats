@@ -3,6 +3,7 @@
 #![allow(unused_variables)]
 
 pub mod core;
+pub mod graph;
 pub mod metrics;
 pub mod ts;
 pub mod utils;
