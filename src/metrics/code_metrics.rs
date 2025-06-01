@@ -1,10 +1,11 @@
+use crate::config::Language;
 use crate::ts::{Node, TSParsers, Tree};
 use crate::utils::get_file_name;
 use crate::visitor::TreeVisitor;
 
 pub struct CodeMetaData {
     /// The programming language of the source file.
-    pub language: String,
+    pub language: Language,
     /// The file path of the source file.
     pub file_path: String,
     /// The name of the node (e.g., method or function name).
@@ -51,14 +52,14 @@ pub struct CodeMetricBlock {
 
 impl CodeMetricBlock {
     pub fn new(
-        language: &String,
+        language: Language,
         file_path: &String,
         node_name: String,
         node_type: String,
     ) -> CodeMetricBlock {
         CodeMetricBlock {
             meta_data: CodeMetaData {
-                language: language.to_string(),
+                language: language,
                 file_path: file_path.to_string(),
                 node_name,
                 node_type,
@@ -184,8 +185,10 @@ impl CodeMetricBlock {
 
     /// Calculate the cyclomatic complexity of the node
     pub fn calculate_cc(&mut self, node: &Node) {
-        let decision_points = get_node_group(&self.meta_data.language, "decision_point_nodes");
-        let skip_nodes = get_node_group(&self.meta_data.language, "decision_point_skip_nodes");
+        let decision_points =
+            get_node_group(self.meta_data.language.clone(), "decision_point_nodes");
+        let skip_nodes =
+            get_node_group(self.meta_data.language.clone(), "decision_point_skip_nodes");
 
         self.metric.cc =
             self.count_decision_points(*node, &decision_points, &skip_nodes) as u32 + 1;
@@ -211,11 +214,11 @@ impl CodeMetrics {
         &mut self,
         parsers: &TSParsers,
         source_code: &str,
-        language: &String,
+        language: Language,
         file_path: &String,
         tree: &Tree,
     ) {
-        let visitor = TreeVisitor::new(parsers, &language, source_code);
+        let visitor = TreeVisitor::new(parsers, language, source_code);
 
         let root_node = tree.root_node();
         let root_type = root_node.kind();
@@ -247,7 +250,7 @@ impl CodeMetrics {
         self.generate_class_metrics(
             &parsers,
             &source_code,
-            language.to_string(),
+            language,
             file_path.to_string(),
             &tree,
             &class_nodes,
@@ -256,7 +259,7 @@ impl CodeMetrics {
         self.generate_function_metrics(
             &parsers,
             &source_code,
-            language.to_string(),
+            language,
             file_path.to_string(),
             &tree,
             &method_nodes,
@@ -268,7 +271,7 @@ impl CodeMetrics {
         &mut self,
         parsers: &TSParsers,
         source_code: &str,
-        language: String,
+        language: Language,
         file_path: String,
         tree: &Tree,
         class_nodes: &Vec<Node>,
@@ -283,7 +286,7 @@ impl CodeMetrics {
                 visitor.perform_base_query(&node, tree);
 
             let mut metric_block =
-                CodeMetricBlock::new(&language, &file_path, class_name, node_type.to_string());
+                CodeMetricBlock::new(language, &file_path, class_name, node_type.to_string());
             metric_block.generate_simple_node_metrics(&visitor, &node);
             metric_block.calculate_eloc(visitor, node);
             metric_block.calculate_cloc_dcloc(&visitor, &comment_nodes);
@@ -301,7 +304,7 @@ impl CodeMetrics {
         &mut self,
         parsers: &TSParsers,
         source_code: &str,
-        language: String,
+        language: Language,
         file_path: String,
         tree: &Tree,
         method_nodes: &Vec<Node>,
@@ -316,7 +319,7 @@ impl CodeMetrics {
                 visitor.perform_base_query(&node, tree);
 
             let mut metric_block =
-                CodeMetricBlock::new(&language, &file_path, method_name, node_type.to_string());
+                CodeMetricBlock::new(language, &file_path, method_name, node_type.to_string());
             metric_block.generate_simple_node_metrics(&visitor, &node);
 
             metric_block.calculate_eloc(visitor, node);
@@ -335,7 +338,7 @@ impl CodeMetrics {
     }
 }
 
-pub fn get_node_group(language: &str, group_name: &str) -> Vec<String> {
+pub fn get_node_group(language: Language, group_name: &str) -> Vec<String> {
     const JAVA_DECISION_POINTS: &[&str] = &[
         "if_statement",
         "else_clause",
@@ -372,11 +375,11 @@ pub fn get_node_group(language: &str, group_name: &str) -> Vec<String> {
 
     const PYTHON_DECISION_POINTS_SKIP_NODES: &[&str] = &["class_definition", "function_definition"];
 
-    let vec = match (language, group_name) {
-        ("Java", "decision_point_nodes") => JAVA_DECISION_POINTS,
-        ("Python", "decision_point_nodes") => PYTHON_DECISION_POINTS,
-        ("Java", "decision_point_skip_nodes") => JAVA_DECISION_POINTS_SKIP_NODES,
-        ("Python", "decision_point_skip_nodes") => PYTHON_DECISION_POINTS_SKIP_NODES,
+    let vec = match (&language, group_name) {
+        (Language::Java, "decision_point_nodes") => JAVA_DECISION_POINTS,
+        (Language::Python, "decision_point_nodes") => PYTHON_DECISION_POINTS,
+        (Language::Java, "decision_point_skip_nodes") => JAVA_DECISION_POINTS_SKIP_NODES,
+        (Language::Python, "decision_point_skip_nodes") => PYTHON_DECISION_POINTS_SKIP_NODES,
         _ => {
             eprintln!(
                 "Unsupported language or group name: {} - {}",

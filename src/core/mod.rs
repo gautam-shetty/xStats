@@ -21,9 +21,14 @@ impl XStats {
         Self {
             target_path,
             output_path,
+
+            // Initialize parsers for all supported languages
             parsers: TSParsers::new(),
+            // Initialize trees bin to store parsed trees
             trees_bin: TSTreesBin::new(),
+            // Initialize metrics map to store code metrics
             metrics_map: CodeMetricsMap::new(),
+            // Initialize type dependency graph
             tdg: TypeDependencyGraph::new(),
         }
     }
@@ -235,12 +240,13 @@ impl XStats {
             code_metrics.generate_root_metrics(
                 &self.parsers,
                 &source_code,
-                &language.to_string(),
+                language,
                 &file.to_string(),
                 &tree,
             );
             // Process the tree for type dependency graph
             self.tdg.process_tree(&file.to_string(), &tree);
+
             self.trees_bin.insert_tree(&file, tree);
         }
     }

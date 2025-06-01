@@ -1,25 +1,35 @@
+use crate::config;
 use crate::utils;
+use config::Language;
 use std::collections::HashMap;
 pub use tree_sitter::{
-    InputEdit, Language, Node, Parser, Point, Query, QueryCaptures, QueryCursor, QueryMatches, Tree,
+    InputEdit, Language as TSLanguage, Node, Parser, Point, Query, QueryCaptures, QueryCursor,
+    QueryMatches, Tree,
 };
 
-pub fn get_grammar_info() -> Vec<(&'static str, Language, Vec<&'static str>)> {
+pub fn get_grammar_info() -> Vec<(Language, TSLanguage, Vec<&'static str>)> {
     vec![
-        ("Java", tree_sitter_java::LANGUAGE.into(), vec![".java"]),
-        ("Python", tree_sitter_python::LANGUAGE.into(), vec![".py"]),
+        (
+            Language::Java,
+            tree_sitter_java::LANGUAGE.into(),
+            vec![".java"],
+        ),
+        (
+            Language::Python,
+            tree_sitter_python::LANGUAGE.into(),
+            vec![".py"],
+        ),
     ]
 }
 
 pub struct TSParser {
-    name: &'static str,
-    language: Language,
+    language: TSLanguage,
     parser: Parser,
     supported_extensions: Vec<&'static str>,
 }
 
 impl TSParser {
-    pub fn new(name: &'static str, grammar: Language) -> Self {
+    pub fn new(grammar: TSLanguage) -> Self {
         let language = grammar;
 
         let mut parser = Parser::new();
@@ -28,7 +38,6 @@ impl TSParser {
             .expect("Error setting language");
 
         Self {
-            name,
             language,
             parser,
             supported_extensions: vec![],
@@ -63,7 +72,7 @@ impl TSParser {
 }
 
 pub struct TSParsers {
-    ts_parsers: Vec<TSParser>,
+    ts_parsers: HashMap<Language, TSParser>,
 }
 
 impl TSParsers {
@@ -71,18 +80,16 @@ impl TSParsers {
         let ts_parsers = get_grammar_info()
             .into_iter()
             .map(|(name, grammar, extensions)| {
-                let mut parser = TSParser::new(name, grammar);
+                let mut parser = TSParser::new(grammar);
                 parser.supported_extensions = extensions;
-                parser
+                (name, parser)
             })
-            .collect();
+            .collect::<HashMap<Language, TSParser>>();
         Self { ts_parsers }
     }
 
-    pub fn get_parser(&self, language: &str) -> Option<&TSParser> {
-        self.ts_parsers
-            .iter()
-            .find(|parser| parser.name == language)
+    pub fn get_parser(&self, language: &Language) -> Option<&TSParser> {
+        self.ts_parsers.get(language)
     }
 
     pub fn generate_tree(
@@ -90,10 +97,10 @@ impl TSParsers {
         trees_bin: &mut TSTreesBin,
         file_path: &str,
         content: Option<String>,
-    ) -> Option<(&'static str, Tree, String)> {
+    ) -> Option<(Language, Tree, String)> {
         let file_extension = utils::get_file_extension(file_path);
 
-        for ts_parser in &mut self.ts_parsers {
+        for (lang, ts_parser) in &mut self.ts_parsers {
             if ts_parser
                 .supported_extensions
                 .contains(&file_extension.as_str())
@@ -104,7 +111,7 @@ impl TSParsers {
                 };
 
                 if let Some(tree) = Self::parse_with_ts(&mut ts_parser.parser, &source_code, None) {
-                    return Some((ts_parser.name, tree, source_code.to_string()));
+                    return Some((lang.clone(), tree, source_code.to_string()));
                 }
             }
         }
@@ -116,10 +123,10 @@ impl TSParsers {
         trees_bin: &mut TSTreesBin,
         file_path: &str,
         source_code: &str,
-    ) -> Option<(&'static str, Tree, String)> {
+    ) -> Option<(Language, Tree, String)> {
         let file_extension = utils::get_file_extension(file_path);
 
-        for ts_parser in &mut self.ts_parsers {
+        for (lang, ts_parser) in &mut self.ts_parsers {
             if ts_parser
                 .supported_extensions
                 .contains(&file_extension.as_str())
@@ -133,7 +140,7 @@ impl TSParsers {
                 if let Some(tree) =
                     Self::parse_with_ts(&mut ts_parser.parser, &source_code, old_tree.as_deref())
                 {
-                    return Some((ts_parser.name, tree, source_code));
+                    return Some((lang.clone(), tree, source_code));
                 }
             }
         }
@@ -151,7 +158,7 @@ impl TSParsers {
     pub fn get_all_supported_extensions(&self) -> Vec<&'static str> {
         self.ts_parsers
             .iter()
-            .flat_map(|parser| parser.supported_extensions.iter())
+            .flat_map(|(_, parser)| parser.supported_extensions.iter())
             .cloned()
             .collect()
     }

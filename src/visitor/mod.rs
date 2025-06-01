@@ -1,6 +1,7 @@
+use crate::config::Language;
 use crate::ts::{Node, TSParsers, Tree};
 
-pub fn get_query_group<'a>(language: &'a str, query_name: &'a str) -> &'a str {
+pub fn get_query_group<'a>(language: &Language, query_name: &'a str) -> &'a str {
     const JAVA_BASE_QUERY: &str = concat!(
         "[(line_comment) @comment (block_comment) @comment]",
         "(import_declaration) @import",
@@ -15,9 +16,9 @@ pub fn get_query_group<'a>(language: &'a str, query_name: &'a str) -> &'a str {
         "(function_definition ) @method_definition",
     );
 
-    match (language, query_name) {
-        ("Java", "base_query") => JAVA_BASE_QUERY,
-        ("Python", "base_query") => PYTHON_BASE_QUERY,
+    match (&language, query_name) {
+        (Language::Java, "base_query") => JAVA_BASE_QUERY,
+        (Language::Python, "base_query") => PYTHON_BASE_QUERY,
         _ => {
             eprintln!(
                 "Unsupported language or group name: {} - {}",
@@ -30,15 +31,14 @@ pub fn get_query_group<'a>(language: &'a str, query_name: &'a str) -> &'a str {
 
 pub struct TreeVisitor<'a> {
     pub parsers: &'a TSParsers,
-    pub language: String,
+    pub language: Language,
     pub source_code: &'a str,
 }
-
 impl<'a> TreeVisitor<'a> {
-    pub fn new(parsers: &'a TSParsers, language: &String, source_code: &'a str) -> Self {
+    pub fn new(parsers: &'a TSParsers, language: Language, source_code: &'a str) -> Self {
         Self {
             parsers,
-            language: language.to_string(),
+            language,
             source_code,
         }
     }
@@ -125,12 +125,12 @@ impl<'a> TreeVisitor<'a> {
 
             // Extract the text of the comment
             if let Ok(comment_text) = node.utf8_text(self.source_code.as_bytes()) {
-                if self.language == "Java" {
+                if self.language == Language::Java {
                     // Check for Java doc comments (start with /**)
                     if comment_text.starts_with("/**") {
                         doc_comments_count += 1;
                     }
-                } else if self.language == "Python" {
+                } else if self.language == Language::Python {
                     // Check for Python docstrings (triple quotes)
                     if comment_text.starts_with("\"\"\"") || comment_text.starts_with("'''") {
                         doc_comments_count += 1;
@@ -145,17 +145,13 @@ impl<'a> TreeVisitor<'a> {
     pub fn check_if_broken(&self, node: Node) -> bool {
         // NOTE: COMPUTE HEAVY FUNCTION, maybe?
 
-        let skip_nodes = match self.language.as_str() {
-            "Java" => vec![
+        let skip_nodes = match self.language {
+            Language::Java => vec![
                 "class_declaration",
                 "method_declaration",
                 "constructor_declaration",
             ],
-            "Python" => vec!["class_definition", "function_definition"],
-            _ => {
-                eprintln!("Unsupported language: {}", self.language);
-                return false; // Return 0 for unsupported languages
-            }
+            Language::Python => vec!["class_definition", "function_definition"],
         };
 
         let mut is_broken = false;

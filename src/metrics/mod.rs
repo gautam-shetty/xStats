@@ -1,18 +1,19 @@
 mod code_metrics;
 pub use code_metrics::CodeMetrics;
+use std::collections::{hash_map::Iter as HashMapIter, HashMap};
 
 pub struct CodeMetricsMap {
-    pub metrics: std::collections::HashMap<String, CodeMetrics>,
+    pub metrics: HashMap<String, CodeMetrics>,
 }
 
 impl CodeMetricsMap {
     pub fn new() -> CodeMetricsMap {
         CodeMetricsMap {
-            metrics: std::collections::HashMap::new(),
+            metrics: HashMap::new(),
         }
     }
 
-    pub fn iter(&self) -> std::collections::hash_map::Iter<String, CodeMetrics> {
+    pub fn iter(&self) -> HashMapIter<String, CodeMetrics> {
         self.metrics.iter()
     }
 
@@ -65,7 +66,7 @@ impl CodeMetricsMap {
         if let Some(metrics) = metrics {
             for block in &metrics.metric_blocks {
                 table.push(vec![
-                    block.meta_data.language.clone(),
+                    block.meta_data.language.to_string(),
                     block.meta_data.file_path.clone(),
                     block.meta_data.start_row.to_string(),
                     block.meta_data.start_col.to_string(),
